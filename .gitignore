@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+
+# Local configuration and credentials
+.env
+*.pem
+*.key
+
+# Market data and generated artifacts
+data/raw/
+data/quality/
+data/paper/
+data/*.duckdb
+data/*.wal
+data/*.lock
+artifacts/*
+!artifacts/.gitkeep
+
+# Optuna / MLflow
+*.db
+mlruns/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,99 @@
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ares-eth-engine"
+version = "0.1.0"
+description = "Auditable ETH sequence-model research and paper-trading pipeline"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = { text = "MIT" }
+authors = [{ name = "ARES Engine contributors" }]
+keywords = ["ethereum", "machine-learning", "trading", "backtesting", "lstm", "tcn", "optuna"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+  "apscheduler>=3.10,<4",
+  "ccxt>=4.4,<5",
+  "duckdb>=1.2,<2",
+  "filelock>=3.16,<4",
+  "joblib>=1.4,<2",
+  "numpy>=1.26,<3",
+  "optuna>=4.2,<5",
+  "pandas>=2.2,<3",
+  "pyarrow>=17,<24",
+  "pydantic>=2.8,<3",
+  "pyyaml>=6,<7",
+  "scikit-learn>=1.5,<2",
+  "typer>=0.15,<1",
+]
+
+[project.optional-dependencies]
+ml = [
+  "tensorflow-cpu>=2.20,<2.22; platform_system != 'Darwin'",
+  "tensorflow>=2.20,<2.22; platform_system == 'Darwin'",
+]
+ml-torch = [
+  "keras>=3.8,<4",
+  "torch>=2.5,<3",
+]
+tracking = [
+  "mlflow>=2.17,<4",
+  "river>=0.22,<1",
+]
+dev = [
+  "mypy>=1.13,<2",
+  "pre-commit>=4,<5",
+  "pytest>=8.3,<10",
+  "pytest-cov>=6,<8",
+  "ruff>=0.9,<1",
+]
+
+[project.scripts]
+ares = "ares_engine.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/ArjiaTechnologies/ares-engine"
+Issues = "https://github.com/ArjiaTechnologies/ares-engine/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ares_engine"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers"
+testpaths = ["tests"]
+markers = [
+  "ml: requires a supported Keras runtime and performs a small training run",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/ares_engine/cli.py" = ["B008"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_ignores = true
+packages = ["ares_engine"]
+
+[tool.coverage.run]
+source = ["ares_engine"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true

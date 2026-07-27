@@ -1,0 +1,37 @@
+name: Bug report
+description: Report a reproducible ARES defect
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: What broke?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Minimal reproduction
+      description: Include command, config changes, and sanitized logs.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: ARES version or commit
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Python, OS, and ML backend
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed API keys, secrets, private account data, and proprietary market data.
+          required: true

@@ -1,0 +1,36 @@
+name: Research result
+description: Share a reproducible experiment without making unsupported profit claims
+title: "[Research]: "
+labels: [research]
+body:
+  - type: textarea
+    id: hypothesis
+    attributes:
+      label: Predeclared hypothesis
+    validations:
+      required: true
+  - type: textarea
+    id: data
+    attributes:
+      label: Data range, venues, timeframe, and hashes
+    validations:
+      required: true
+  - type: textarea
+    id: protocol
+    attributes:
+      label: Splits, purge, costs, gates, and untouched holdout
+    validations:
+      required: true
+  - type: textarea
+    id: results
+    attributes:
+      label: Full results, including failed folds and stress tests
+    validations:
+      required: true
+  - type: checkboxes
+    id: claim
+    attributes:
+      label: Claim discipline
+      options:
+        - label: I am not presenting a backtest or paper result as audited live profitability.
+          required: true

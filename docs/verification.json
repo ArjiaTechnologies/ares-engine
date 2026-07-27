@@ -1,0 +1,69 @@
+{
+  "verified_at": "2026-07-24T01:19:02Z",
+  "verification_type": "deterministic synthetic smoke lifecycle",
+  "profitability_claim": false,
+  "gate_profile": "smoke/permissive",
+  "cost_stress_gate_required": false,
+  "runtime": {
+    "python": "3.13.5 sandbox compatibility run",
+    "backend": "Keras 3 on Torch",
+    "reference_release_runtime": "Python 3.11-3.13 with TensorFlow"
+  },
+  "tests": {
+    "non_ml": "47 passed",
+    "ml": "1 passed",
+    "parquet_duckdb": "skipped in sandbox because pyarrow and duckdb were unavailable"
+  },
+  "data_quality": {
+    "primary_passed": true,
+    "secondary_passed": true,
+    "cross_venue_passed": true,
+    "rows_per_venue": 2500,
+    "cross_venue_p95_bps": 3.9985296808625534,
+    "cross_venue_latest_bps": 0.5601412438741057,
+    "primary_staleness_bars": 0.0,
+    "secondary_staleness_bars": 0.0
+  },
+  "validation": {
+    "passed_under_smoke_gates": true,
+    "score": 1.2633832754819914,
+    "fold_count": 2,
+    "median_sharpe": 1.683183583219029,
+    "median_return": 0.013482697461224713,
+    "mean_auc": 0.5730661742950997,
+    "worst_drawdown": 0.04975257349610973,
+    "median_turnover": 31.5,
+    "total_trades": 63,
+    "median_doubled_cost_return": -0.014720177798955958,
+    "all_doubled_cost_folds_positive": false
+  },
+  "bundle": {
+    "exported": true,
+    "hash_verified": true,
+    "metadata_consistency_verified": true,
+    "champion_pointer_manifest_anchored": true,
+    "files": [
+      "config.json",
+      "feature_spec.json",
+      "manifest.json",
+      "metrics.json",
+      "model.keras",
+      "provenance.json",
+      "scaler.joblib"
+    ]
+  },
+  "promotion": {
+    "approved_as_first_smoke_champion": true,
+    "challenger_score": 1.2633832754819914
+  },
+  "paper_loader": {
+    "reloaded_bundle": true,
+    "quality_passed": true,
+    "staleness_bars": 0.0,
+    "secondary_staleness_bars": 0.0,
+    "probability": 0.41488099098205566,
+    "signal": -1,
+    "signal_generated": true
+  },
+  "interpretation": "The software lifecycle executed end to end. The negative doubled-cost median means this synthetic run is not evidence of a robust trading edge."
+}

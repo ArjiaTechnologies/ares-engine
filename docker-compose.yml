@@ -1,0 +1,11 @@
+services:
+  ares:
+    build:
+      context: .
+      target: ml
+    working_dir: /app
+    volumes:
+      - ./data:/app/data
+      - ./artifacts:/app/artifacts
+      - ./configs:/app/configs:ro
+    command: ["doctor"]
