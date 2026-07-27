@@ -18,7 +18,7 @@ from .data.quality import QualityReport, validate_cross_venue, validate_ohlcv
 from .exceptions import AresError, DataQualityError
 from .features import build_features
 from .models import predict_probabilities
-from .utils import sha256_file, utc_now
+from .utils import sha256_file, timeframe_to_seconds, utc_now
 
 SecondaryInput: TypeAlias = pd.DataFrame | Mapping[str, pd.DataFrame] | None
 
@@ -42,6 +42,34 @@ class PaperSignal:
 
 def _report_failures(report: QualityReport) -> list[str]:
     return [f"{report.source}: {issue.message}" for issue in report.issues]
+
+
+def _open_candle_failures(
+    frame: pd.DataFrame,
+    *,
+    source: str,
+    timeframe: str,
+    reference: datetime | pd.Timestamp,
+) -> list[str]:
+    """Reject feeds that still contain the in-progress candle at ``reference``."""
+    if "timestamp" not in frame.columns or frame.empty:
+        return []
+    step = timeframe_to_seconds(timeframe)
+    reference_ts = pd.Timestamp(reference)
+    reference_ts = (
+        reference_ts.tz_localize("UTC")
+        if reference_ts.tzinfo is None
+        else reference_ts.tz_convert("UTC")
+    )
+    current_start = pd.Timestamp((int(reference_ts.timestamp()) // step) * step, unit="s", tz="UTC")
+    stamps = pd.to_datetime(frame["timestamp"], utc=True, errors="coerce")
+    open_rows = int((stamps >= current_start).sum())
+    if open_rows:
+        return [
+            f"{source}: feed contains {open_rows} in-progress or future candle(s) at or after "
+            f"{current_start}; only completed candles are allowed for paper inference"
+        ]
+    return []
 
 
 def _normalize_secondary_frames(
@@ -99,6 +127,15 @@ def generate_paper_signal(
         max_staleness_bars=config.data.max_staleness_bars,
     )
     failures.extend(_report_failures(primary_report))
+    if config.data.drop_open_candle:
+        failures.extend(
+            _open_candle_failures(
+                primary_ohlcv,
+                source=config.data.primary_exchange,
+                timeframe=config.data.timeframe,
+                reference=reference,
+            )
+        )
     staleness_bars = float(primary_report.stats.get("staleness_bars", float("inf")))
 
     secondary_frames, normalization_failures = _normalize_secondary_frames(
@@ -129,6 +166,15 @@ def generate_paper_signal(
             max_staleness_bars=config.data.max_staleness_bars,
         )
         failures.extend(_report_failures(secondary_report))
+        if config.data.drop_open_candle:
+            failures.extend(
+                _open_candle_failures(
+                    secondary,
+                    source=secondary_name,
+                    timeframe=config.data.timeframe,
+                    reference=reference,
+                )
+            )
         stale = float(secondary_report.stats.get("staleness_bars", float("inf")))
         secondary_staleness[secondary_name] = stale
 
