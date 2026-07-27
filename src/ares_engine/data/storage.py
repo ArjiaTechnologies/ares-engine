@@ -50,19 +50,66 @@ def merge_market(current: pd.DataFrame, incoming: pd.DataFrame) -> pd.DataFrame:
     return merged
 
 
-def write_market(path: Path, frame: pd.DataFrame) -> None:
-    """Atomically replace one canonical Parquet file after validation has passed."""
+TEMP_SUFFIX = ".parquet.tmp"
+
+
+def _fsync_path(path: Path) -> None:
+    try:
+        descriptor = os.open(path, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def sweep_stale_temp_files(root: Path) -> list[Path]:
+    """Remove orphaned staging files left by interrupted writes.
+
+    Call only while holding the ingestion lock. Staging files never use the
+    canonical ``.parquet`` suffix, so even before a sweep they can never be
+    picked up by the DuckDB view or any canonical-file glob.
+    """
+    removed: list[Path] = []
+    raw_root = root / "raw"
+    if raw_root.exists():
+        for stale in raw_root.rglob(f"*{TEMP_SUFFIX}"):
+            stale.unlink(missing_ok=True)
+            removed.append(stale)
+    return removed
+
+
+def stage_market(path: Path, frame: pd.DataFrame) -> Path:
+    """Write a fully flushed staging file next to the canonical path without replacing it."""
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, raw_temp_path = tempfile.mkstemp(
         dir=path.parent,
         prefix=f".{path.stem}.",
-        suffix=".parquet",
+        suffix=TEMP_SUFFIX,
     )
     os.close(descriptor)
     temp_path = Path(raw_temp_path)
     try:
         frame.to_parquet(temp_path, index=False)
-        os.replace(temp_path, path)
+        _fsync_path(temp_path)
+    except Exception:
+        temp_path.unlink(missing_ok=True)
+        raise
+    return temp_path
+
+
+def commit_staged(temp_path: Path, path: Path) -> None:
+    """Atomically move one staged file onto its canonical path."""
+    os.replace(temp_path, path)
+    _fsync_path(path.parent)
+
+
+def write_market(path: Path, frame: pd.DataFrame) -> None:
+    """Atomically replace one canonical Parquet file after validation has passed."""
+    temp_path = stage_market(path, frame)
+    try:
+        commit_staged(temp_path, path)
     finally:
         temp_path.unlink(missing_ok=True)
 
@@ -84,7 +131,17 @@ def sync_duckdb(database_path: Path, parquet_root: Path) -> None:
 
     database_path.parent.mkdir(parents=True, exist_ok=True)
     raw_root = parquet_root / "raw"
-    parquet_files = list(raw_root.rglob("*.parquet")) if raw_root.exists() else []
+    # Enumerate canonical files explicitly and refuse hidden/staging entries so a
+    # crashed writer can never leak partial data into the analytical view.
+    parquet_files = (
+        sorted(
+            path
+            for path in raw_root.rglob("*.parquet")
+            if path.is_file() and not path.name.startswith(".")
+        )
+        if raw_root.exists()
+        else []
+    )
     connection = duckdb.connect(str(database_path))
     try:
         if not parquet_files:
@@ -106,12 +163,14 @@ def sync_duckdb(database_path: Path, parquet_root: Path) -> None:
                 """
             )
             return
-        glob = (raw_root / "**" / "*.parquet").resolve().as_posix().replace("'", "''")
+        quoted = ", ".join(
+            "'" + path.resolve().as_posix().replace("'", "''") + "'" for path in parquet_files
+        )
         connection.execute(
             f"""
             CREATE OR REPLACE VIEW ohlcv AS
             SELECT *
-            FROM read_parquet('{glob}', union_by_name = true, filename = true)
+            FROM read_parquet([{quoted}], union_by_name = true, filename = true)
             """
         )
     finally:
