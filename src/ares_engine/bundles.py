@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -196,24 +197,45 @@ def validate_bundle_metadata(feature_spec: dict[str, Any], config: AresConfig) -
 
 
 def load_bundle(path: str | Path) -> LoadedBundle:
+    """Verify and load a bundle without a verify-then-load race window.
+
+    After manifest verification, every file is copied into a private snapshot
+    directory and re-hashed against the verified manifest before anything is
+    deserialized. A concurrent writer that modifies the original bundle between
+    verification and deserialization can therefore only cause a
+    ``BundleIntegrityError``; it can never get unverified bytes loaded.
+    """
     bundle_path = Path(path)
-    verify_bundle(bundle_path)
+    manifest = verify_bundle(bundle_path)
+    manifest_files = manifest["files"]
     from .models import keras_api
 
     keras = keras_api()
-    with (bundle_path / "feature_spec.json").open(encoding="utf-8") as handle:
-        feature_spec = json.load(handle)
-    with (bundle_path / "config.json").open(encoding="utf-8") as handle:
-        config = AresConfig.model_validate(json.load(handle))
-    with (bundle_path / "metrics.json").open(encoding="utf-8") as handle:
-        metrics = json.load(handle)
-    with (bundle_path / "provenance.json").open(encoding="utf-8") as handle:
-        provenance = json.load(handle)
-    validate_bundle_metadata(feature_spec, config)
+    with tempfile.TemporaryDirectory(prefix=".ares-bundle-load.") as snapshot_name:
+        snapshot = Path(snapshot_name)
+        for name, expected in manifest_files.items():
+            payload = (bundle_path / name).read_bytes()
+            digest = hashlib.sha256(payload).hexdigest()
+            if len(payload) != expected["bytes"] or digest != expected["sha256"]:
+                raise BundleIntegrityError(
+                    f"Bundle file changed between verification and load: {name}"
+                )
+            (snapshot / name).write_bytes(payload)
+        with (snapshot / "feature_spec.json").open(encoding="utf-8") as handle:
+            feature_spec = json.load(handle)
+        with (snapshot / "config.json").open(encoding="utf-8") as handle:
+            config = AresConfig.model_validate(json.load(handle))
+        with (snapshot / "metrics.json").open(encoding="utf-8") as handle:
+            metrics = json.load(handle)
+        with (snapshot / "provenance.json").open(encoding="utf-8") as handle:
+            provenance = json.load(handle)
+        validate_bundle_metadata(feature_spec, config)
+        model = keras.models.load_model(snapshot / "model.keras")
+        scaler = joblib.load(snapshot / "scaler.joblib")
     return LoadedBundle(
         path=bundle_path,
-        model=keras.models.load_model(bundle_path / "model.keras"),
-        scaler=joblib.load(bundle_path / "scaler.joblib"),
+        model=model,
+        scaler=scaler,
         feature_spec=feature_spec,
         config=config,
         metrics=metrics,
