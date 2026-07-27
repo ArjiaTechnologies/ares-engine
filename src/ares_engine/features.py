@@ -72,7 +72,7 @@ def build_features(ohlcv: pd.DataFrame, config: FeatureConfig) -> FeatureFrame:
     frame[position_name] = (close - frame[low_name]) / width
     feature_columns.extend([mid_name, high_name, low_name, position_name])
 
-    frame["log_return_1"] = np.log(close).diff()
+    frame["log_return_1"] = pd.Series(np.log(close.to_numpy()), index=close.index).diff()
     feature_columns.append("log_return_1")
 
     for window in config.volatility_windows:

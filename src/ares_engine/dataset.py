@@ -22,7 +22,8 @@ class SequenceDataset:
 
     @property
     def directional_mask(self) -> np.ndarray:
-        return np.isfinite(self.labels) & (self.labels != 0)
+        mask: np.ndarray = np.isfinite(self.labels) & (self.labels != 0)
+        return mask
 
     @property
     def y_binary(self) -> np.ndarray:
@@ -129,4 +130,5 @@ def fit_scaler(X_train: np.ndarray) -> StandardScaler:
 def transform_sequences(scaler: StandardScaler, X: np.ndarray) -> np.ndarray:
     original_shape = X.shape
     transformed = scaler.transform(X.reshape(-1, X.shape[-1]))
-    return transformed.reshape(original_shape).astype("float32")
+    reshaped: np.ndarray = transformed.reshape(original_shape).astype("float32")
+    return reshaped

@@ -123,13 +123,14 @@ def validate_ohlcv(
         _issue(issues, "ohlc_invariant", "High/low bounds are inconsistent with open/close", invariant_count)
 
     expected = pd.Timedelta(seconds=timeframe_to_seconds(timeframe))
-    valid_timestamps = work["timestamp"].dropna().sort_values()
-    deltas = valid_timestamps.diff().dropna()
-    # Ceil catches a missing expected slot even when a malformed timestamp lands between grid points.
-    gap_steps = (np.ceil(deltas / expected).astype("int64") - 1).clip(lower=0)
-    gap_count = int(gap_steps.sum())
-    irregular_count = int((deltas.mod(expected) != pd.Timedelta(0)).sum())
     expected_ns = int(expected.value)
+    valid_timestamps = work["timestamp"].dropna().sort_values()
+    delta_ns = valid_timestamps.diff().dropna().astype("int64")
+    # Integer ceiling division catches a missing expected slot even when a malformed timestamp
+    # lands between grid points, without float rounding on nanosecond values.
+    gap_steps = ((delta_ns + expected_ns - 1) // expected_ns - 1).clip(lower=0)
+    gap_count = int(gap_steps.sum())
+    irregular_count = int((delta_ns.mod(expected_ns) != 0).sum())
     off_grid_count = int(((valid_timestamps.astype("int64") % expected_ns) != 0).sum())
     if gap_count > max_gap_count:
         _issue(
@@ -254,17 +255,17 @@ def validate_cross_venue(
     missing_primary = sorted(required.difference(primary.columns))
     missing_secondary = sorted(required.difference(secondary.columns))
     if missing_primary or missing_secondary:
-        issues: list[QualityIssue] = []
+        column_issues: list[QualityIssue] = []
         if missing_primary:
             _issue(
-                issues,
+                column_issues,
                 "missing_cross_venue_columns",
                 f"{primary_name} is missing cross-venue columns: {missing_primary}",
                 len(missing_primary),
             )
         if missing_secondary:
             _issue(
-                issues,
+                column_issues,
                 "missing_cross_venue_columns",
                 f"{secondary_name} is missing cross-venue columns: {missing_secondary}",
                 len(missing_secondary),
@@ -272,7 +273,7 @@ def validate_cross_venue(
         return QualityReport(
             source=f"{primary_name}~{secondary_name}",
             passed=False,
-            issues=issues,
+            issues=column_issues,
             stats={"overlap_rows": 0},
         )
 
@@ -312,7 +313,7 @@ def validate_cross_venue(
     p95 = float(divergence_bps.quantile(0.95))
     maximum = float(divergence_bps.max())
     latest_index = joined["timestamp"].idxmax()
-    latest_timestamp = pd.Timestamp(joined.loc[latest_index, "timestamp"])
+    latest_timestamp = pd.Timestamp(joined["timestamp"].loc[latest_index])
     primary_latest_timestamp = pd.Timestamp(left["timestamp"].max())
     secondary_latest_timestamp = pd.Timestamp(right["timestamp"].max())
     latest_divergence = float(divergence_bps.loc[latest_index])

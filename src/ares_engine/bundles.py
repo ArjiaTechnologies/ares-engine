@@ -110,6 +110,8 @@ def verify_bundle(path: Path) -> dict[str, Any]:
         raise BundleIntegrityError(f"Missing manifest: {manifest_path}")
     with manifest_path.open(encoding="utf-8") as handle:
         manifest = json.load(handle)
+    if not isinstance(manifest, dict):
+        raise BundleIntegrityError("Bundle manifest must be a JSON object")
     if manifest.get("format_version") != 1:
         raise BundleIntegrityError("Unsupported bundle manifest format version")
     manifest_files = manifest.get("files", {})

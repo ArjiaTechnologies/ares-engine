@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal, cast
 
 import optuna
 import pandas as pd
@@ -12,9 +13,12 @@ from .utils import atomic_write_json
 from .validation import run_walk_forward
 
 
-def _trial_config(base: AresConfig, trial: optuna.Trial) -> AresConfig:
+def _trial_config(base: AresConfig, trial: optuna.trial.BaseTrial) -> AresConfig:
     config = base.model_copy(deep=True)
-    config.labels.method = trial.suggest_categorical("label_method", ["k_ahead", "triple_barrier"])
+    config.labels.method = cast(
+        Literal["k_ahead", "triple_barrier"],
+        trial.suggest_categorical("label_method", ["k_ahead", "triple_barrier"]),
+    )
     config.labels.horizon_bars = trial.suggest_categorical("horizon_bars", [3, 6, 12, 24])
     if config.labels.method == "k_ahead":
         config.labels.dead_zone_bps = trial.suggest_float("dead_zone_bps", 5.0, 40.0, step=5.0)
@@ -26,7 +30,9 @@ def _trial_config(base: AresConfig, trial: optuna.Trial) -> AresConfig:
             "stop_loss_bps", 20.0, 100.0, step=10.0
         )
 
-    config.model.family = trial.suggest_categorical("model_family", ["lstm", "tcn"])
+    config.model.family = cast(
+        Literal["lstm", "tcn"], trial.suggest_categorical("model_family", ["lstm", "tcn"])
+    )
     config.model.lookback_bars = trial.suggest_categorical("lookback_bars", [24, 36, 48, 72, 96, 144])
     config.model.hidden_units = trial.suggest_categorical("hidden_units", [16, 32, 64, 96, 128])
     config.model.dropout = trial.suggest_float("dropout", 0.0, 0.5, step=0.1)
@@ -101,7 +107,7 @@ def run_search(
         )
         raise ValueError("Optuna completed without a gate-passing candidate")
 
-    selected_trial = max(passing_trials, key=lambda trial: float(trial.value))
+    selected_trial = max(passing_trials, key=lambda trial: float(trial.value or 0.0))
     study.set_user_attr("ares_selected_trial_number", selected_trial.number)
     study.set_user_attr("ares_selected_trial_value", selected_trial.value)
     best_config = _trial_config(base_config, selected_trial)

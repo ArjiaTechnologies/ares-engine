@@ -8,7 +8,7 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeAlias
 
 import numpy as np
 import pandas as pd
@@ -20,7 +20,7 @@ from .features import build_features
 from .models import predict_probabilities
 from .utils import sha256_file, utc_now
 
-SecondaryInput = pd.DataFrame | Mapping[str, pd.DataFrame] | None
+SecondaryInput: TypeAlias = pd.DataFrame | Mapping[str, pd.DataFrame] | None
 
 
 @dataclass(slots=True)

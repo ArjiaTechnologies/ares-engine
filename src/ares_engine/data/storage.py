@@ -78,7 +78,7 @@ def upsert_market(path: Path, incoming: pd.DataFrame) -> pd.DataFrame:
 def sync_duckdb(database_path: Path, parquet_root: Path) -> None:
     """Create a DuckDB view over all raw Parquet files without duplicating data."""
     try:
-        import duckdb  # type: ignore
+        import duckdb
     except ImportError as exc:
         raise AresError("DuckDB is not installed. Install ARES base dependencies first.") from exc
 

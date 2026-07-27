@@ -42,7 +42,7 @@ class CCXTOHLCVProvider:
 
     def _exchange(self) -> Any:
         try:
-            import ccxt  # type: ignore
+            import ccxt
         except ImportError as exc:
             raise AresError("CCXT is not installed. Install ARES base dependencies first.") from exc
 

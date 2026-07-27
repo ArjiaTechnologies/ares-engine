@@ -114,7 +114,7 @@ def deep_cycle(config_path: Path) -> None:
 
 def run_scheduler(config_path: Path) -> None:
     try:
-        from apscheduler.schedulers.blocking import BlockingScheduler  # type: ignore
+        from apscheduler.schedulers.blocking import BlockingScheduler
     except ImportError as exc:
         raise RuntimeError("APScheduler is not installed") from exc
     config = load_config(config_path)
