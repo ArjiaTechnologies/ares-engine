@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+import math
 from pathlib import Path
 from typing import Literal, cast
 
@@ -47,6 +50,30 @@ def _trial_config(base: AresConfig, trial: optuna.trial.BaseTrial) -> AresConfig
     return AresConfig.model_validate(config.model_dump(mode="python"))
 
 
+def _data_fingerprint(ohlcv: pd.DataFrame, base_config: AresConfig) -> str:
+    """Stable identity of the dataset a study's trials were evaluated against."""
+    stamps = pd.to_datetime(ohlcv["timestamp"], utc=True) if "timestamp" in ohlcv.columns else None
+    closes = (
+        hashlib.sha256(
+            pd.util.hash_pandas_object(ohlcv["close"], index=False).to_numpy().tobytes()
+        ).hexdigest()
+        if "close" in ohlcv.columns
+        else None
+    )
+    payload = json.dumps(
+        {
+            "rows": int(len(ohlcv)),
+            "start": str(stamps.min()) if stamps is not None and len(stamps) else None,
+            "end": str(stamps.max()) if stamps is not None and len(stamps) else None,
+            "close_hash": closes,
+            "symbol": base_config.data.symbol,
+            "timeframe": base_config.data.timeframe,
+        },
+        sort_keys=True,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 def run_search(
     ohlcv: pd.DataFrame,
     base_config: AresConfig,
@@ -75,13 +102,21 @@ def run_search(
         return summary.score
 
     sampler = optuna.samplers.TPESampler(seed=base_config.project.seed)
+    # Trials are only comparable against the exact dataset they were scored on.
+    # Scoping the study name by a dataset fingerprint makes resuming on identical
+    # data work while making silent cross-vintage selection structurally
+    # impossible: a changed dataset always yields a fresh study.
+    fingerprint = _data_fingerprint(ohlcv, base_config)
+    scoped_study_name = f"{base_config.search.study_name}-{fingerprint[:12]}"
     study = optuna.create_study(
-        study_name=base_config.search.study_name,
+        study_name=scoped_study_name,
         storage=base_config.search.storage_url,
         load_if_exists=True,
         direction="maximize",
         sampler=sampler,
     )
+    study.set_user_attr("ares_data_fingerprint", fingerprint)
+    study.set_user_attr("ares_base_study_name", base_config.search.study_name)
     study.optimize(
         objective,
         n_trials=base_config.search.n_trials,
@@ -95,6 +130,8 @@ def run_search(
         if trial.state == optuna.trial.TrialState.COMPLETE
         and bool(trial.user_attrs.get("passed", False))
         and trial.value is not None
+        # NaN or infinite objective values must never rank, let alone win.
+        and math.isfinite(float(trial.value))
     ]
     if not passing_trials:
         atomic_write_json(
