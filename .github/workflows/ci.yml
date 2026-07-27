@@ -21,6 +21,8 @@ jobs:
           enable-cache: true
       - run: uv sync --extra dev
       - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy src
       - run: uv run pytest -m "not ml" --cov --cov-report=term-missing
 
   ml-smoke:
