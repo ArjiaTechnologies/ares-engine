@@ -1,0 +1,78 @@
+project:
+  name: ARES Engine Smoke
+  seed: 7
+storage:
+  root: data
+  artifacts: artifacts
+  duckdb_path: data/ares.duckdb
+data:
+  primary_exchange: coinbase
+  validation_exchanges: [kraken]
+  symbol: ETH/USD
+  timeframe: 1h
+  since: "2025-01-01T00:00:00Z"
+  page_limit: 300
+  max_pages: 100
+  retries: 3
+  drop_open_candle: true
+  resume: true
+  fail_on_quality: true
+  max_gap_count: 2
+  max_cross_venue_p95_bps: 100.0
+  max_cross_venue_latest_bps: 150.0
+  min_cross_venue_overlap: 100
+  max_staleness_bars: 2
+features:
+  ema_periods: [8, 21]
+  rsi_period: 14
+  bollinger_period: 20
+  bollinger_std: 2.0
+  volatility_windows: [12, 24]
+  volume_z_window: 24
+labels:
+  method: k_ahead
+  horizon_bars: 6
+  dead_zone_bps: 12.0
+  take_profit_bps: 50.0
+  stop_loss_bps: 40.0
+model:
+  family: lstm
+  lookback_bars: 36
+  hidden_units: 16
+  tcn_kernel_size: 3
+  tcn_blocks: 2
+  dropout: 0.1
+  learning_rate: 0.001
+  batch_size: 64
+  epochs: 2
+  patience: 1
+backtest:
+  long_threshold: 0.57
+  short_threshold: 0.43
+  fee_bps: 6.0
+  slippage_bps: 3.0
+  execution_delay_bars: 1
+validation:
+  min_train_bars: 1500
+  validation_bars: 240
+  step_bars: 240
+  max_folds: 2
+  purge_bars: 6
+  stress_cost_multiplier: 2.0
+gates:
+  min_median_sharpe: -10.0
+  min_median_return: -1.0
+  max_worst_drawdown: 0.99
+  max_median_turnover: 10000.0
+  min_total_trades: 0
+  require_positive_cost_stress: false
+  min_promotion_score_improvement: 0.0
+search:
+  n_trials: 1
+  timeout_seconds: 300
+  study_name: ares-smoke
+  storage_url: sqlite:///artifacts/optuna-smoke.db
+scheduler:
+  quick_minutes: 60
+  deep_hours: 168
+  run_search_on_deep: true

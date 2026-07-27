@@ -8,14 +8,13 @@ import textwrap
 from pathlib import Path
 
 import pytest
+from test_bundle_promotion import make_fake_bundle  # reuse the fixture builder
 
 import ares_engine.promotion as promotion_module
 from ares_engine.config import GateConfig
 from ares_engine.exceptions import BundleIntegrityError, PromotionRejected
 from ares_engine.promotion import promote, resolve_champion
-from ares_engine.utils import atomic_write_json, sha256_file
-
-from test_bundle_promotion import make_fake_bundle  # reuse the fixture builder
+from ares_engine.utils import sha256_file
 
 
 def test_crash_between_decision_and_pointer_preserves_previous_champion(
@@ -141,8 +140,12 @@ def test_concurrent_promotions_from_two_processes_leave_a_single_coherent_champi
             print(f"REJECTED: {{exc}}")
         """
     )
-    first = subprocess.Popen([sys.executable, "-c", script, "bundle-a"], stdout=subprocess.PIPE, text=True)
-    second = subprocess.Popen([sys.executable, "-c", script, "bundle-b"], stdout=subprocess.PIPE, text=True)
+    first = subprocess.Popen(
+        [sys.executable, "-c", script, "bundle-a"], stdout=subprocess.PIPE, text=True
+    )
+    second = subprocess.Popen(
+        [sys.executable, "-c", script, "bundle-b"], stdout=subprocess.PIPE, text=True
+    )
     outputs = [process.communicate(timeout=30)[0].strip() for process in (first, second)]
     assert all(out.startswith(("PROMOTED", "REJECTED")) for out in outputs), outputs
     champion = resolve_champion(tmp_path)

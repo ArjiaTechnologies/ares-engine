@@ -1,0 +1,80 @@
+project:
+  name: ARES Engine
+  seed: 42
+storage:
+  root: data
+  artifacts: artifacts
+  duckdb_path: data/ares.duckdb
+data:
+  primary_exchange: coinbase
+  validation_exchanges:
+    - kraken
+  symbol: ETH/USD
+  timeframe: 1h
+  since: "2023-01-01T00:00:00Z"
+  until: null
+  page_limit: 300
+  max_pages: 10000
+  retries: 4
+  drop_open_candle: true
+  resume: true
+  fail_on_quality: true
+  max_gap_count: 0
+  max_cross_venue_p95_bps: 75.0
+  max_cross_venue_latest_bps: 150.0
+  min_cross_venue_overlap: 100
+  max_staleness_bars: 2
+features:
+  ema_periods: [12, 26, 50]
+  rsi_period: 14
+  bollinger_period: 20
+  bollinger_std: 2.0
+  volatility_windows: [12, 24, 72]
+  volume_z_window: 48
+labels:
+  method: k_ahead
+  horizon_bars: 12
+  dead_zone_bps: 15.0
+  take_profit_bps: 60.0
+  stop_loss_bps: 45.0
+model:
+  family: lstm
+  lookback_bars: 72
+  hidden_units: 64
+  tcn_kernel_size: 3
+  tcn_blocks: 3
+  dropout: 0.2
+  learning_rate: 0.001
+  batch_size: 128
+  epochs: 30
+  patience: 5
+backtest:
+  long_threshold: 0.58
+  short_threshold: 0.42
+  fee_bps: 6.0
+  slippage_bps: 3.0
+  execution_delay_bars: 1
+validation:
+  min_train_bars: 4000
+  validation_bars: 720
+  step_bars: 720
+  max_folds: 5
+  purge_bars: null
+  stress_cost_multiplier: 2.0
+gates:
+  min_median_sharpe: 0.0
+  min_median_return: 0.0
+  max_worst_drawdown: 0.30
+  max_median_turnover: 500.0
+  min_total_trades: 20
+  require_positive_cost_stress: true
+  min_promotion_score_improvement: 0.05
+search:
+  n_trials: 25
+  timeout_seconds: null
+  study_name: ares-eth
+  storage_url: sqlite:///artifacts/optuna.db
+scheduler:
+  quick_minutes: 60
+  deep_hours: 168
+  run_search_on_deep: true

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.metadata
+import importlib.resources
 import json
 import platform
 import sys
@@ -37,12 +38,28 @@ app = typer.Typer(
 )
 
 
+def _resolve_config(path: Path) -> Path:
+    """Resolve a config path: filesystem first, then the packaged defaults.
+
+    Installed wheels have no ./configs checkout, so `configs/default.yaml` and
+    `configs/smoke.yaml` fall back to the copies shipped inside the package.
+    """
+    if path.exists():
+        return path
+    if path.parent == Path("configs"):
+        packaged = importlib.resources.files("ares_engine") / "configs" / path.name
+        if packaged.is_file():
+            with importlib.resources.as_file(packaged) as concrete:
+                return Path(concrete)
+    raise typer.BadParameter(f"Configuration file not found: {path}")
+
+
 def _json(payload: Any) -> None:
     typer.echo(json.dumps(payload, indent=2, sort_keys=True, default=str))
 
 
 def _primary_frame(config_path: Path) -> tuple[AresConfig, Path, pd.DataFrame]:
-    config = load_config(config_path)
+    config = load_config(_resolve_config(config_path))
     path = market_path(
         config.storage.root,
         config.data.primary_exchange,
@@ -175,20 +192,20 @@ def doctor() -> None:
 
 @app.command()
 def ingest(
-    config_path: Path = typer.Option(Path("configs/default.yaml"), "--config", exists=True),
+    config_path: Path = typer.Option(Path("configs/default.yaml"), "--config"),
 ) -> None:
     """Fetch Coinbase and validation venues, then enforce data quality gates."""
-    config = load_config(config_path)
+    config = load_config(_resolve_config(config_path))
     result = ingest_market_data(config)
     _json(result.to_dict())
 
 
 @app.command("quality")
 def quality_report(
-    config_path: Path = typer.Option(Path("configs/default.yaml"), "--config", exists=True),
+    config_path: Path = typer.Option(Path("configs/default.yaml"), "--config"),
 ) -> None:
     """Print the most recent persisted data-quality report."""
-    config = load_config(config_path)
+    config = load_config(_resolve_config(config_path))
     path = config.storage.root / "quality" / "latest.json"
     if not path.exists():
         raise typer.BadParameter("No quality report exists; run `ares ingest` first")
@@ -197,7 +214,7 @@ def quality_report(
 
 @app.command()
 def validate(
-    config_path: Path = typer.Option(Path("configs/default.yaml"), "--config", exists=True),
+    config_path: Path = typer.Option(Path("configs/default.yaml"), "--config"),
     verbose: int = typer.Option(0, min=0, max=2),
 ) -> None:
     """Run leak-aware walk-forward validation without exporting a bundle."""
@@ -210,7 +227,7 @@ def validate(
 
 @app.command()
 def search(
-    config_path: Path = typer.Option(Path("configs/default.yaml"), "--config", exists=True),
+    config_path: Path = typer.Option(Path("configs/default.yaml"), "--config"),
     verbose: int = typer.Option(0, min=0, max=2),
 ) -> None:
     """Run Optuna and persist best_params.json, best_meta.json, and best_config.yaml."""
@@ -232,7 +249,7 @@ def search(
 
 @app.command()
 def train(
-    config_path: Path = typer.Option(Path("configs/default.yaml"), "--config", exists=True),
+    config_path: Path = typer.Option(Path("configs/default.yaml"), "--config"),
     bundle_name: str | None = typer.Option(None, "--name"),
     verbose: int = typer.Option(0, min=0, max=2),
 ) -> None:
@@ -252,21 +269,21 @@ def train(
 @app.command()
 def promote(
     challenger: Path = typer.Argument(..., exists=True, file_okay=False),
-    config_path: Path = typer.Option(Path("configs/default.yaml"), "--config", exists=True),
+    config_path: Path = typer.Option(Path("configs/default.yaml"), "--config"),
 ) -> None:
     """Promote a challenger only when it passes gates and beats the incumbent."""
-    config = load_config(config_path)
+    config = load_config(_resolve_config(config_path))
     decision = promote_bundle(challenger, config.storage.artifacts, config.gates)
     _json(decision.to_dict())
 
 
 @app.command()
 def paper(
-    config_path: Path = typer.Option(Path("configs/default.yaml"), "--config", exists=True),
+    config_path: Path = typer.Option(Path("configs/default.yaml"), "--config"),
     bundle: Path | None = typer.Option(None, "--bundle", file_okay=False),
 ) -> None:
     """Load a verified bundle and emit one read-only paper signal."""
-    config = load_config(config_path)
+    config = load_config(_resolve_config(config_path))
     selected = bundle or resolve_champion(config.storage.artifacts)
     if selected is None:
         raise typer.BadParameter("No champion exists and no --bundle was supplied")
@@ -291,12 +308,12 @@ def paper(
 
 @app.command()
 def demo(
-    config_path: Path = typer.Option(Path("configs/smoke.yaml"), "--config", exists=True),
+    config_path: Path = typer.Option(Path("configs/smoke.yaml"), "--config"),
     bars: int = typer.Option(2_500, min=500),
     ml: bool = typer.Option(False, "--ml", help="Also run Keras walk-forward validation."),
 ) -> None:
     """Run deterministic offline data-quality and optional ML smoke tests."""
-    config = load_config(config_path)
+    config = load_config(_resolve_config(config_path))
     primary = make_synthetic_ohlcv(
         bars,
         timeframe=config.data.timeframe,
@@ -343,12 +360,12 @@ def demo(
 
 @app.command("verify-offline")
 def verify_offline(
-    config_path: Path = typer.Option(Path("configs/smoke.yaml"), "--config", exists=True),
+    config_path: Path = typer.Option(Path("configs/smoke.yaml"), "--config"),
     output_dir: Path = typer.Option(Path("artifacts/verification"), "--output-dir"),
     bars: int = typer.Option(2_500, min=1_500),
 ) -> None:
     """Exercise quality, ML, export, promotion, reload, and paper inference on synthetic data."""
-    config = load_config(config_path)
+    config = load_config(_resolve_config(config_path))
     required_bars = minimum_required_bars(config)
     if bars < required_bars:
         raise typer.BadParameter(
@@ -484,7 +501,7 @@ def validate_ingestion_report(
 @app.command("cycle")
 def cycle(
     mode: str = typer.Argument(..., help="quick or deep"),
-    config_path: Path = typer.Option(Path("configs/default.yaml"), "--config", exists=True),
+    config_path: Path = typer.Option(Path("configs/default.yaml"), "--config"),
 ) -> None:
     """Run one scheduler cycle immediately."""
     if mode == "quick":
@@ -497,7 +514,7 @@ def cycle(
 
 @app.command("scheduler")
 def scheduler_command(
-    config_path: Path = typer.Option(Path("configs/default.yaml"), "--config", exists=True),
+    config_path: Path = typer.Option(Path("configs/default.yaml"), "--config"),
 ) -> None:
     """Run recurring APScheduler quick and deep cycles."""
     run_scheduler(config_path)
