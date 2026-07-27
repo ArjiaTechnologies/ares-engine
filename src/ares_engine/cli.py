@@ -27,7 +27,7 @@ from .search import run_search
 from .synthetic import make_synthetic_ohlcv
 from .training import train_candidate
 from .utils import atomic_write_json, timeframe_to_seconds, utc_now
-from .validation import run_walk_forward
+from .validation import minimum_required_bars, run_walk_forward
 
 app = typer.Typer(
     name="ares",
@@ -329,6 +329,12 @@ def demo(
         "cross_venue_quality": cross_report.to_dict(),
     }
     if ml:
+        required_bars = minimum_required_bars(config)
+        if bars < required_bars:
+            raise typer.BadParameter(
+                f"--bars {bars} cannot satisfy the configured folds; "
+                f"at least {required_bars} rows are required"
+            )
         summary = run_walk_forward(primary, config, verbose=0)
         output["validation"] = summary.to_dict()
     _json(output)
@@ -342,6 +348,12 @@ def verify_offline(
 ) -> None:
     """Exercise quality, ML, export, promotion, reload, and paper inference on synthetic data."""
     config = load_config(config_path)
+    required_bars = minimum_required_bars(config)
+    if bars < required_bars:
+        raise typer.BadParameter(
+            f"--bars {bars} cannot satisfy the configured folds: feature warm-up, lookback, "
+            f"min_train_bars, purge, and validation_bars need at least {required_bars} rows"
+        )
     run_name = datetime.now(tz=UTC).strftime("run-%Y%m%dT%H%M%SZ")
     run_root = output_dir / run_name
     config.storage.artifacts = run_root

@@ -65,6 +65,30 @@ class ValidationSummary:
         }
 
 
+def feature_warmup_rows(config: AresConfig) -> int:
+    """Index of the first row whose full feature vector is finite (exact arithmetic)."""
+    features = config.features
+    candidates = [
+        max(features.ema_periods) - 1,
+        features.rsi_period,
+        features.bollinger_period - 1,
+        max(features.volatility_windows),
+        features.volume_z_window - 1,
+        1,
+    ]
+    return max(candidates)
+
+
+def minimum_required_bars(config: AresConfig) -> int:
+    """Smallest OHLCV row count that can satisfy the configured walk-forward split."""
+    required_samples = (
+        config.validation.min_train_bars
+        + int(config.validation.purge_bars or 0)
+        + config.validation.validation_bars
+    )
+    return required_samples + feature_warmup_rows(config) + config.model.lookback_bars - 1
+
+
 def prepare_dataset(
     ohlcv: pd.DataFrame, config: AresConfig
 ) -> tuple[FeatureFrame, SequenceDataset]:
