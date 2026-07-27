@@ -22,6 +22,7 @@ from .live import generate_paper_signal
 from .models import backend_name
 from .promotion import promote as promote_bundle
 from .promotion import resolve_champion
+from .public_audit import run_public_ingestion_audit, validate_public_ingestion_report
 from .scheduler import deep_cycle, quick_cycle, run_scheduler
 from .search import run_search
 from .synthetic import make_synthetic_ohlcv
@@ -427,6 +428,57 @@ def verify_offline(
     report_path = run_root / "verification.json"
     atomic_write_json(report_path, report)
     _json({"report": report_path, **report})
+
+
+@app.command("verify-public-ingestion")
+def verify_public_ingestion(
+    primary: str = typer.Option("coinbase", "--primary"),
+    validation: str = typer.Option("kraken", "--validation"),
+    symbol: str = typer.Option("ETH/USD", "--symbol"),
+    timeframe: str = typer.Option("1h", "--timeframe"),
+    start: datetime = typer.Option(..., "--start", formats=["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d"]),
+    end: datetime = typer.Option(..., "--end", formats=["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d"]),
+    output: Path = typer.Option(Path("artifacts/public-ingestion-audit"), "--output"),
+    page_limit: int = typer.Option(300, min=10, max=1000),
+    retries: int = typer.Option(3, min=0, max=10),
+) -> None:
+    """Run the credential-free bounded public-ingestion audit against live endpoints.
+
+    Uses public market-data endpoints only, through the production ingestion
+    path, in an isolated output directory. Runs ingestion twice to prove
+    idempotency and exits nonzero when any required gate fails.
+    """
+    start_utc = start.replace(tzinfo=UTC) if start.tzinfo is None else start
+    end_utc = end.replace(tzinfo=UTC) if end.tzinfo is None else end
+    report = run_public_ingestion_audit(
+        primary=primary,
+        validation=validation,
+        symbol=symbol,
+        timeframe=timeframe,
+        start=start_utc,
+        end=end_utc,
+        output_dir=output,
+        page_limit=page_limit,
+        retries=retries,
+    )
+    _json(report)
+    problems = validate_public_ingestion_report(output)
+    if problems:
+        typer.echo("Report validation problems: " + "; ".join(problems), err=True)
+        raise typer.Exit(code=4)
+    if not report["overall_passed"]:
+        raise typer.Exit(code=1)
+
+
+@app.command("validate-ingestion-report")
+def validate_ingestion_report(
+    output: Path = typer.Argument(..., exists=True, file_okay=False),
+) -> None:
+    """Validate a public-ingestion audit directory; nonzero exit on any problem."""
+    problems = validate_public_ingestion_report(output)
+    _json({"output": output, "problems": problems, "valid": not problems})
+    if problems:
+        raise typer.Exit(code=4)
 
 
 @app.command("cycle")

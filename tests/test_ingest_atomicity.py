@@ -232,3 +232,70 @@ def test_new_rows_reports_actual_additions_not_fetch_size(tmp_path: Path) -> Non
         for venue in ("coinbase", "kraken")
     ]
     assert hashes == hashes_after
+
+
+def test_non_advancing_cursor_raises_when_duplicates_survive_filtering() -> None:
+    """Venues that keep answering with rows at or after the cursor must trip the
+    explicit non-advancing-cursor guard instead of looping forever."""
+    from datetime import UTC, datetime
+    from unittest import mock
+
+    from ares_engine.data.providers import CCXTOHLCVProvider
+
+    start = datetime(2025, 1, 1, tzinfo=UTC)
+    start_ms = int(start.timestamp() * 1000)
+    hour_ms = 3_600_000
+    same_batch = [[start_ms, 100.0, 101.0, 99.0, 100.5, 5.0]]
+
+    class LoopingExchange:
+        has = {"fetchOHLCV": True}
+        markets = {"ETH/USD": {}}
+
+        def load_markets(self):
+            return None
+
+        def milliseconds(self):
+            return start_ms + 100 * hour_ms
+
+        def fetch_ohlcv(self, symbol, timeframe, since, limit):
+            return same_batch  # never advances past the first candle
+
+    from ares_engine.exceptions import AresError
+
+    with mock.patch.object(CCXTOHLCVProvider, "_exchange", lambda self: LoopingExchange()):
+        provider = CCXTOHLCVProvider("coinbase")
+        with pytest.raises(AresError, match="non-advancing"):
+            provider.fetch_range("ETH/USD", "1h", start, None, limit=10, max_pages=5, retries=0)
+
+
+def test_non_advancing_cursor_error_message() -> None:
+    from datetime import UTC, datetime
+    from unittest import mock
+
+    import pytest as _pytest
+
+    from ares_engine.data.providers import CCXTOHLCVProvider
+    from ares_engine.exceptions import AresError
+
+    start = datetime(2025, 1, 1, tzinfo=UTC)
+    start_ms = int(start.timestamp() * 1000)
+
+    class StallingExchange:
+        has = {"fetchOHLCV": True}
+        markets = {"ETH/USD": {}}
+        calls = 0
+
+        def load_markets(self):
+            return None
+
+        def milliseconds(self):
+            return start_ms + 360_000_000
+
+        def fetch_ohlcv(self, symbol, timeframe, since, limit):
+            # Always claims the newest candle is one step BEHIND the cursor.
+            return [[since - 3_600_000, 100.0, 101.0, 99.0, 100.5, 5.0]]
+
+    with mock.patch.object(CCXTOHLCVProvider, "_exchange", lambda self: StallingExchange()):
+        provider = CCXTOHLCVProvider("coinbase")
+        with _pytest.raises(AresError, match="non-advancing"):
+            provider.fetch_range("ETH/USD", "1h", start, None, limit=10, max_pages=5, retries=0)
