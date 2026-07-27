@@ -65,7 +65,9 @@ class ValidationSummary:
         }
 
 
-def prepare_dataset(ohlcv: pd.DataFrame, config: AresConfig) -> tuple[FeatureFrame, SequenceDataset]:
+def prepare_dataset(
+    ohlcv: pd.DataFrame, config: AresConfig
+) -> tuple[FeatureFrame, SequenceDataset]:
     features = build_features(ohlcv, config.features)
     labels = build_labels(features.frame, config.labels)
     dataset = build_sequence_dataset(
@@ -90,7 +92,9 @@ def _aggregate(folds: list[FoldMetrics]) -> dict[str, float | int | bool]:
     returns = np.asarray([fold.backtest.total_return for fold in folds], dtype="float64")
     drawdowns = np.asarray([fold.backtest.max_drawdown for fold in folds], dtype="float64")
     turnover = np.asarray([fold.backtest.turnover for fold in folds], dtype="float64")
-    stress_returns = np.asarray([fold.stress_backtest.total_return for fold in folds], dtype="float64")
+    stress_returns = np.asarray(
+        [fold.stress_backtest.total_return for fold in folds], dtype="float64"
+    )
     aucs = np.asarray([fold.auc for fold in folds if fold.auc is not None], dtype="float64")
     return {
         "fold_count": len(folds),
@@ -193,7 +197,9 @@ def run_walk_forward(
             else None
         )
 
-        model = build_model(dataset.X.shape[1:], config.model, seed=config.project.seed + fold.number)
+        model = build_model(
+            dataset.X.shape[1:], config.model, seed=config.project.seed + fold.number
+        )
         fit_model(
             model,
             X_train_directional,

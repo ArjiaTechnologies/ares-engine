@@ -60,7 +60,9 @@ class IngestionResult:
         }
 
 
-def _closed_candles_only(frame: pd.DataFrame, timeframe: str, now: datetime | None = None) -> pd.DataFrame:
+def _closed_candles_only(
+    frame: pd.DataFrame, timeframe: str, now: datetime | None = None
+) -> pd.DataFrame:
     if frame.empty:
         return frame
     now = now or utc_now()
@@ -155,9 +157,9 @@ def _ingest_market_data_unlocked(
     cross_reports: list[QualityReport] = []
     required_cross_columns = {"timestamp", "close"}
     for exchange in config.data.validation_exchanges:
-        if not required_cross_columns.issubset(primary.columns) or not required_cross_columns.issubset(
-            frames[exchange].columns
-        ):
+        if not required_cross_columns.issubset(
+            primary.columns
+        ) or not required_cross_columns.issubset(frames[exchange].columns):
             continue
         report = validate_cross_venue(
             primary,
@@ -185,11 +187,9 @@ def _ingest_market_data_unlocked(
         atomic_write_json(quality_path(config.storage.root, report.source), report.to_dict())
     atomic_write_json(config.storage.root / "quality" / "latest.json", result.to_dict())
     if not passed:
-        failures = [
-            issue.message
-            for item in exchange_results
-            for issue in item.report.issues
-        ] + [issue.message for report in cross_reports for issue in report.issues]
+        failures = [issue.message for item in exchange_results for issue in item.report.issues] + [
+            issue.message for report in cross_reports for issue in report.issues
+        ]
         if config.data.fail_on_quality:
             raise DataQualityError("Market data failed quality gates: " + "; ".join(failures))
         return result

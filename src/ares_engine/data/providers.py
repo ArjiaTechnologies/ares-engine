@@ -85,7 +85,9 @@ class CCXTOHLCVProvider:
 
         step_ms = timeframe_to_seconds(timeframe) * 1000
         cursor_ms = int(since.astimezone(UTC).timestamp() * 1000)
-        until_ms = int(until.astimezone(UTC).timestamp() * 1000) if until else exchange.milliseconds()
+        until_ms = (
+            int(until.astimezone(UTC).timestamp() * 1000) if until else exchange.milliseconds()
+        )
         rows: list[list[float]] = []
 
         for page in range(max_pages):
@@ -136,9 +138,7 @@ class CCXTOHLCVProvider:
 
         frame = pd.DataFrame(rows, columns=OHLCV_COLUMNS)
         if frame.empty:
-            return pd.DataFrame(
-                columns=[*OHLCV_COLUMNS, "exchange", "symbol", "timeframe"]
-            ).astype(
+            return pd.DataFrame(columns=[*OHLCV_COLUMNS, "exchange", "symbol", "timeframe"]).astype(
                 {
                     "open": "float64",
                     "high": "float64",
@@ -154,4 +154,8 @@ class CCXTOHLCVProvider:
         frame["exchange"] = self.exchange_id
         frame["symbol"] = requested_symbol
         frame["timeframe"] = timeframe
-        return frame.sort_values("timestamp").drop_duplicates("timestamp", keep="last").reset_index(drop=True)
+        return (
+            frame.sort_values("timestamp")
+            .drop_duplicates("timestamp", keep="last")
+            .reset_index(drop=True)
+        )

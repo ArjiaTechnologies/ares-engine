@@ -58,7 +58,9 @@ def _normalize_secondary_frames(
             ]
         return {configured_exchanges[0]: secondary_ohlcv}, []
     frames = {str(exchange): frame for exchange, frame in secondary_ohlcv.items()}
-    invalid = [exchange for exchange, frame in frames.items() if not isinstance(frame, pd.DataFrame)]
+    invalid = [
+        exchange for exchange, frame in frames.items() if not isinstance(frame, pd.DataFrame)
+    ]
     failures = [f"secondary feed {exchange} is not a pandas DataFrame" for exchange in invalid]
     for exchange in invalid:
         frames.pop(exchange)
@@ -130,9 +132,9 @@ def generate_paper_signal(
         stale = float(secondary_report.stats.get("staleness_bars", float("inf")))
         secondary_staleness[secondary_name] = stale
 
-        if required_cross_columns.issubset(primary_ohlcv.columns) and required_cross_columns.issubset(
-            secondary.columns
-        ):
+        if required_cross_columns.issubset(
+            primary_ohlcv.columns
+        ) and required_cross_columns.issubset(secondary.columns):
             cross = validate_cross_venue(
                 primary_ohlcv,
                 secondary,

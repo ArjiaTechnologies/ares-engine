@@ -37,14 +37,8 @@ def _require_committed_ingestion(result: IngestionResult) -> None:
     if result.passed and result.committed:
         return
     failures = [
-        issue.message
-        for exchange in result.exchanges
-        for issue in exchange.report.issues
-    ] + [
-        issue.message
-        for report in result.cross_venue_reports
-        for issue in report.issues
-    ]
+        issue.message for exchange in result.exchanges for issue in exchange.report.issues
+    ] + [issue.message for report in result.cross_venue_reports for issue in report.issues]
     detail = "; ".join(failures) if failures else "ingestion did not commit canonical data"
     raise DataQualityError(f"Scheduler cycle stopped after failed ingestion: {detail}")
 

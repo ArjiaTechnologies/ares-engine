@@ -61,7 +61,9 @@ class PurgedWalkForwardSplitter:
     def split(self, n_samples: int) -> Iterator[Fold]:
         validation_start = self.min_train_size + self.purge_size
         fold_number = 0
-        while validation_start + self.validation_size <= n_samples and fold_number < self.max_splits:
+        while (
+            validation_start + self.validation_size <= n_samples and fold_number < self.max_splits
+        ):
             train_end = validation_start - self.purge_size
             train_indices = np.arange(0, train_end, dtype="int64")
             validation_indices = np.arange(
@@ -106,7 +108,9 @@ def build_sequence_dataset(
         source_rows.append(end)
 
     if not sequences:
-        raise ValueError("No complete sequences could be built; provide more history or shorter features")
+        raise ValueError(
+            "No complete sequences could be built; provide more history or shorter features"
+        )
 
     return SequenceDataset(
         X=np.asarray(sequences, dtype="float32"),

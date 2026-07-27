@@ -77,7 +77,11 @@ class DataConfig(StrictModel):
     def ensure_timezone(cls, value: object) -> object:
         if value is None:
             return None
-        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00")) if not isinstance(value, datetime) else value
+        parsed = (
+            datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            if not isinstance(value, datetime)
+            else value
+        )
         if parsed.tzinfo is None:
             parsed = parsed.replace(tzinfo=UTC)
         return parsed.astimezone(UTC)
@@ -90,7 +94,7 @@ class DataConfig(StrictModel):
         return normalized
 
     @model_validator(mode="after")
-    def valid_range(self) -> "DataConfig":
+    def valid_range(self) -> DataConfig:
         if self.until is not None and self.until <= self.since:
             raise ValueError("data.until must be after data.since")
         if self.primary_exchange in self.validation_exchanges:
@@ -144,7 +148,7 @@ class BacktestConfig(StrictModel):
     execution_delay_bars: int = Field(default=1, ge=1)
 
     @model_validator(mode="after")
-    def threshold_order(self) -> "BacktestConfig":
+    def threshold_order(self) -> BacktestConfig:
         if self.short_threshold >= self.long_threshold:
             raise ValueError("short_threshold must be below long_threshold")
         return self
@@ -196,7 +200,7 @@ class AresConfig(StrictModel):
     scheduler: SchedulerConfig = Field(default_factory=SchedulerConfig)
 
     @model_validator(mode="after")
-    def model_horizon_consistency(self) -> "AresConfig":
+    def model_horizon_consistency(self) -> AresConfig:
         if self.validation.purge_bars is None:
             self.validation.purge_bars = self.labels.horizon_bars
         if self.validation.purge_bars < self.labels.horizon_bars:

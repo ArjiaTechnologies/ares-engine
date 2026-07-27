@@ -26,14 +26,14 @@ def _trial_config(base: AresConfig, trial: optuna.trial.BaseTrial) -> AresConfig
         config.labels.take_profit_bps = trial.suggest_float(
             "take_profit_bps", 30.0, 120.0, step=10.0
         )
-        config.labels.stop_loss_bps = trial.suggest_float(
-            "stop_loss_bps", 20.0, 100.0, step=10.0
-        )
+        config.labels.stop_loss_bps = trial.suggest_float("stop_loss_bps", 20.0, 100.0, step=10.0)
 
     config.model.family = cast(
         Literal["lstm", "tcn"], trial.suggest_categorical("model_family", ["lstm", "tcn"])
     )
-    config.model.lookback_bars = trial.suggest_categorical("lookback_bars", [24, 36, 48, 72, 96, 144])
+    config.model.lookback_bars = trial.suggest_categorical(
+        "lookback_bars", [24, 36, 48, 72, 96, 144]
+    )
     config.model.hidden_units = trial.suggest_categorical("hidden_units", [16, 32, 64, 96, 128])
     config.model.dropout = trial.suggest_float("dropout", 0.0, 0.5, step=0.1)
     config.model.learning_rate = trial.suggest_float("learning_rate", 1e-4, 3e-3, log=True)

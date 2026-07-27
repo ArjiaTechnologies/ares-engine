@@ -26,7 +26,10 @@ def make_fake_bundle(root: Path, name: str, *, score: float, passed: bool = True
     manifest = {
         "format_version": 1,
         "files": {
-            filename: {"sha256": sha256_file(bundle / filename), "bytes": (bundle / filename).stat().st_size}
+            filename: {
+                "sha256": sha256_file(bundle / filename),
+                "bytes": (bundle / filename).stat().st_size,
+            }
             for filename in payloads
         },
     }

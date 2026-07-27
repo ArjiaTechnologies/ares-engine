@@ -88,7 +88,9 @@ def resolve_champion(artifacts_root: Path) -> Path | None:
     return path
 
 
-def decide_promotion(challenger: Path, champion: Path | None, gates: GateConfig) -> PromotionDecision:
+def decide_promotion(
+    challenger: Path, champion: Path | None, gates: GateConfig
+) -> PromotionDecision:
     verify_bundle(challenger)
     challenger_metrics = _metrics(challenger)
     challenger_score = float(challenger_metrics["score"])

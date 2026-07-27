@@ -76,7 +76,9 @@ def build_model(input_shape: tuple[int, int], config: ModelConfig, *, seed: int)
                 name=f"tcn_conv_{block}_b",
             )(x)
             if residual.shape[-1] != config.hidden_units:
-                residual = layers.Conv1D(config.hidden_units, 1, name=f"tcn_residual_{block}")(residual)
+                residual = layers.Conv1D(config.hidden_units, 1, name=f"tcn_residual_{block}")(
+                    residual
+                )
             x = layers.Add(name=f"tcn_add_{block}")([x, residual])
             x = layers.Activation("relu", name=f"tcn_relu_{block}_b")(x)
         x = layers.GlobalAveragePooling1D(name="tcn_pool")(x)

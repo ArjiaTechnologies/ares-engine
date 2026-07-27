@@ -33,7 +33,9 @@ def test_sequence_dataset_keeps_neutral_bars_for_backtest() -> None:
         features.frame,
         LabelConfig(method="k_ahead", horizon_bars=6, dead_zone_bps=10_000),
     )
-    dataset = build_sequence_dataset(features.frame, features.columns, labels.labels, lookback_bars=24)
+    dataset = build_sequence_dataset(
+        features.frame, features.columns, labels.labels, lookback_bars=24
+    )
     assert len(dataset.X) > 100
     assert (~dataset.directional_mask).any()
     assert dataset.X.shape[1:] == (24, len(features.columns))

@@ -20,7 +20,8 @@ from .data.quality import validate_cross_venue, validate_ohlcv
 from .data.storage import market_path, read_market
 from .live import generate_paper_signal
 from .models import backend_name
-from .promotion import promote as promote_bundle, resolve_champion
+from .promotion import promote as promote_bundle
+from .promotion import resolve_champion
 from .scheduler import deep_cycle, quick_cycle, run_scheduler
 from .search import run_search
 from .synthetic import make_synthetic_ohlcv
@@ -67,9 +68,7 @@ def _primary_frame(config_path: Path) -> tuple[AresConfig, Path, pd.DataFrame]:
         expected_start=config.data.since,
         expected_end=config.data.until,
     )
-    failures.extend(
-        f"{primary_report.source}: {issue.message}" for issue in primary_report.issues
-    )
+    failures.extend(f"{primary_report.source}: {issue.message}" for issue in primary_report.issues)
     for exchange in config.data.validation_exchanges:
         secondary = secondary_frames[exchange]
         secondary_report = validate_ohlcv(
@@ -271,7 +270,12 @@ def paper(
     if selected is None:
         raise typer.BadParameter("No champion exists and no --bundle was supplied")
     primary = read_market(
-        market_path(config.storage.root, config.data.primary_exchange, config.data.symbol, config.data.timeframe)
+        market_path(
+            config.storage.root,
+            config.data.primary_exchange,
+            config.data.symbol,
+            config.data.timeframe,
+        )
     )
     result = generate_paper_signal(
         selected,
