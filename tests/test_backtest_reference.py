@@ -5,11 +5,10 @@ import math
 import numpy as np
 import pandas as pd
 import pytest
+from reference_impl import ref_backtest
 
 from ares_engine.backtest import probabilities_to_signal, run_backtest
 from ares_engine.config import BacktestConfig
-
-from reference_impl import ref_backtest
 
 HOURS_PER_YEAR = 365.25 * 24
 
@@ -117,9 +116,7 @@ def test_short_entry_and_exit_hand_calculation() -> None:
 
 def test_long_to_short_reversal_charges_double_turnover_once() -> None:
     config = _cfg(fee_bps=10.0, slippage_bps=5.0)
-    result = _assert_matches_reference(
-        [0.0, 0.01, -0.02, 0.0], [0.9, 0.1, 0.5, 0.5], config
-    )
+    result = _assert_matches_reference([0.0, 0.01, -0.02, 0.0], [0.9, 0.1, 0.5, 0.5], config)
     ledger = result.ledger
     assert list(ledger["position"]) == [0.0, 1.0, -1.0, 0.0]
     assert list(ledger["position_change"]) == [0.0, 1.0, 2.0, 1.0]
@@ -130,9 +127,7 @@ def test_long_to_short_reversal_charges_double_turnover_once() -> None:
 
 
 def test_short_to_long_reversal_mirror() -> None:
-    result = _assert_matches_reference(
-        [0.0, -0.01, 0.02, 0.0], [0.1, 0.9, 0.5, 0.5], _cfg()
-    )
+    result = _assert_matches_reference([0.0, -0.01, 0.02, 0.0], [0.1, 0.9, 0.5, 0.5], _cfg())
     assert list(result.ledger["position"]) == [0.0, -1.0, 1.0, 0.0]
 
 
@@ -156,9 +151,7 @@ def test_threshold_equality_is_inclusive_on_both_sides() -> None:
 
 
 def test_nan_probability_maps_to_flat_not_to_a_trade() -> None:
-    result = _assert_matches_reference(
-        [0.0, 0.05, 0.05, 0.0], [np.nan, 0.9, np.nan, 0.5], _cfg()
-    )
+    result = _assert_matches_reference([0.0, 0.05, 0.05, 0.0], [np.nan, 0.9, np.nan, 0.5], _cfg())
     assert list(result.ledger["position"]) == [0.0, 0.0, 1.0, 0.0]
 
 
@@ -180,7 +173,9 @@ def test_fees_only_slippage_only_and_stress_multiplier() -> None:
     double = _run(returns, probabilities, base, cost_multiplier=2.0)
     _assert_matches_reference(returns, probabilities, base, cost_multiplier=2.0)
     assert double.metrics.final_equity < single.metrics.final_equity
-    doubled_rate_equity = _run(returns, probabilities, _cfg(fee_bps=20, slippage_bps=10)).metrics.final_equity
+    doubled_rate_equity = _run(
+        returns, probabilities, _cfg(fee_bps=20, slippage_bps=10)
+    ).metrics.final_equity
     assert double.metrics.final_equity == pytest.approx(doubled_rate_equity, rel=1e-12)
 
 
@@ -221,7 +216,7 @@ def test_execution_delay_two_bars_is_respected() -> None:
 
 def test_randomized_agreement_with_reference_implementation() -> None:
     rng = np.random.default_rng(7)
-    for case in range(25):
+    for _case in range(25):
         n = int(rng.integers(2, 120))
         returns = rng.normal(0, 0.02, size=n)
         probabilities = rng.uniform(0, 1, size=n)

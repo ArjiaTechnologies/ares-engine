@@ -3,18 +3,30 @@
 Deliberately written with explicit Python loops and floats (no pandas/numpy vectorization)
 so that a shared library bug cannot make both implementations agree by accident.
 """
+
 from __future__ import annotations
+
 import math
 
 
 # ---------------- backtest reference ----------------
-def ref_backtest(bar_returns, probabilities, *, long_t, short_t, fee_bps, slip_bps,
-                 delay=1, cost_mult=1.0, periods_per_year=8766.0):
+def ref_backtest(
+    bar_returns,
+    probabilities,
+    *,
+    long_t,
+    short_t,
+    fee_bps,
+    slip_bps,
+    delay=1,
+    cost_mult=1.0,
+    periods_per_year=8766.0,
+):
     n = len(bar_returns)
     assert len(probabilities) == n
     signals = []
     for p in probabilities:
-        if not (p == p):          # NaN
+        if not (p == p):  # NaN
             signals.append(0.0)
         elif p >= long_t:
             signals.append(1.0)
@@ -45,7 +57,7 @@ def ref_backtest(bar_returns, probabilities, *, long_t, short_t, fee_bps, slip_b
         cost = change * rate
         gross = positions[i] * r
         net = gross - cost
-        equity *= (1.0 + net)
+        equity *= 1.0 + net
         equities.append(equity)
         net_returns.append(net)
         if positions[i] != 0.0:
@@ -125,14 +137,19 @@ def ref_bollinger(values, period, n_std):
     mids, highs, lows, positions = [], [], [], []
     for i in range(len(values)):
         if i < period - 1:
-            mids.append(None); highs.append(None); lows.append(None); positions.append(None)
+            mids.append(None)
+            highs.append(None)
+            lows.append(None)
+            positions.append(None)
             continue
         window = values[i - period + 1 : i + 1]
         m = sum(window) / period
         var = sum((x - m) ** 2 for x in window) / period  # ddof=0
         s = math.sqrt(var)
         hi, lo = m + n_std * s, m - n_std * s
-        mids.append(m); highs.append(hi); lows.append(lo)
+        mids.append(m)
+        highs.append(hi)
+        lows.append(lo)
         width = hi - lo
         positions.append(((values[i] - lo) / width) if width != 0.0 else None)
     return mids, highs, lows, positions

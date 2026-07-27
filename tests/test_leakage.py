@@ -68,11 +68,13 @@ def test_features_labels_tensors_and_scalers_ignore_future_mutation() -> None:
     assert safe_count > 200, "fixture must contain a meaningful pre-cutoff region"
 
     np.testing.assert_array_equal(
-        base_dataset.X[safe], mutated_dataset.X[: safe_count],
+        base_dataset.X[safe],
+        mutated_dataset.X[:safe_count],
         err_msg="feature tensors before the cutoff must be bitwise identical",
     )
     np.testing.assert_array_equal(
-        base_dataset.labels[safe], mutated_dataset.labels[:safe_count],
+        base_dataset.labels[safe],
+        mutated_dataset.labels[:safe_count],
         err_msg="labels whose horizon ends before the cutoff must be identical",
     )
     np.testing.assert_array_equal(
@@ -109,9 +111,10 @@ def test_fold_scalers_are_fit_on_train_indices_only(monkeypatch) -> None:
     )
     folds = list(splitter.split(len(dataset.X)))
     assert len(captured) == len(folds) >= 1
-    for fold, seen in zip(folds, captured):
+    for fold, seen in zip(folds, captured, strict=True):
         np.testing.assert_array_equal(
-            seen, dataset.X[fold.train_indices],
+            seen,
+            dataset.X[fold.train_indices],
             err_msg="scaler input must be exactly the training tensor of the fold",
         )
 
@@ -135,7 +138,10 @@ def test_purge_arithmetic_prevents_label_overlap_with_validation() -> None:
         # before the first validation decision row.
         assert last_train_decision_row + horizon < first_validation_decision_row
         # And chronological ordering with a purge gap in sample space:
-        assert fold.train_indices[-1] + int(config.validation.purge_bars or 0) < fold.validation_indices[0]
+        assert (
+            fold.train_indices[-1] + int(config.validation.purge_bars or 0)
+            < fold.validation_indices[0]
+        )
 
 
 def test_walk_forward_metrics_are_invariant_to_post_fold_future() -> None:
@@ -190,8 +196,9 @@ def test_validation_probabilities_are_invariant_to_future_mutation(monkeypatch) 
     captured.clear()
     run_walk_forward(_mutate_after(frame, cutoff), config)
     assert len(baseline) == len(captured) >= 1
-    for before, after in zip(baseline, captured):
+    for before, after in zip(baseline, captured, strict=True):
         np.testing.assert_array_equal(
-            before, after,
+            before,
+            after,
             err_msg="per-fold validation probabilities must not react to future rewrites",
         )
