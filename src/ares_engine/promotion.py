@@ -66,8 +66,11 @@ def resolve_champion(artifacts_root: Path) -> Path | None:
     pointer = champion_pointer(resolved_root)
     if not pointer.exists():
         return None
-    with pointer.open(encoding="utf-8") as handle:
-        payload = json.load(handle)
+    try:
+        with pointer.open(encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except json.JSONDecodeError as exc:
+        raise BundleIntegrityError("Champion pointer is not valid JSON") from exc
     if not isinstance(payload, dict):
         raise BundleIntegrityError("Champion pointer must be a JSON object")
     bundle_value = payload.get("bundle_path")
