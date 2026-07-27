@@ -37,8 +37,12 @@ dependencies = [
 
 [project.optional-dependencies]
 ml = [
-  "tensorflow-cpu>=2.20,<2.22; platform_system != 'Darwin'",
-  "tensorflow>=2.20,<2.22; platform_system == 'Darwin'",
+  # tensorflow-cpu ships wheels only for x86_64 Linux/Windows. Every other platform
+  # (macOS, Linux aarch64, Windows ARM) must use the plain `tensorflow` wheel, which
+  # is CPU-only on those platforms. Verified against PyPI wheel availability for
+  # TF 2.20/2.21 during the Fable 5 audit.
+  "tensorflow-cpu>=2.20,<2.22; (platform_system == 'Linux' and platform_machine == 'x86_64') or (platform_system == 'Windows' and platform_machine == 'AMD64')",
+  "tensorflow>=2.20,<2.22; platform_system == 'Darwin' or (platform_system == 'Linux' and platform_machine != 'x86_64') or (platform_system == 'Windows' and platform_machine != 'AMD64')",
 ]
 ml-torch = [
   "keras>=3.8,<4",
@@ -50,10 +54,12 @@ tracking = [
 ]
 dev = [
   "mypy>=1.13,<2",
+  "pandas-stubs>=2.2,<3",
   "pre-commit>=4,<5",
   "pytest>=8.3,<10",
   "pytest-cov>=6,<8",
   "ruff>=0.9,<1",
+  "types-PyYAML>=6,<7",
 ]
 
 [project.scripts]
@@ -89,6 +95,10 @@ python_version = "3.11"
 strict = true
 warn_unused_ignores = true
 packages = ["ares_engine"]
+
+[[tool.mypy.overrides]]
+module = ["sklearn.*", "joblib.*", "optuna.*", "apscheduler.*", "duckdb.*", "ccxt.*"]
+ignore_missing_imports = true
 
 [tool.coverage.run]
 source = ["ares_engine"]
