@@ -6,7 +6,7 @@ flowchart LR
     KR[Kraken OHLCV] --> I
     I --> S[Stage all venue snapshots in memory]
     S --> Q[Schema, continuity, UTC-grid, OHLC, metadata, freshness and venue gates]
-    Q -->|all pass| P[Ordered atomic Parquet file replacements]
+    Q -->|all pass| P[Journaled two-phase Parquet commit with crash roll-forward]
     Q -->|any fail| X[Report and commit nothing]
     P --> D[DuckDB view]
     P --> F[Backward-looking features]
@@ -42,7 +42,7 @@ flowchart LR
 ## Trust boundaries
 
 - Raw exchange responses are untrusted until the requested range is covered and every configured venue and cross-venue check passes.
-- Candidate snapshots stay in memory until the full batch is valid. A failed batch never replaces canonical Parquet.
+- Candidate snapshots stay in memory until the full batch is valid. A failed batch never replaces canonical Parquet. The commit itself is journaled two-phase: staged files are fsynced, a rename journal is persisted, and an interrupted commit is rolled forward to completion by the next locked ingestion, so canonical multi-venue state converges to the validated snapshot.
 - Ingestion and scheduler cycles use fail-fast filesystem locks, so concurrent processes cannot race canonical data or promotion state.
 - At least one configured secondary venue is mandatory. Each validator is an independent sanity check, not a source blended into the target, and its newest candle must align with the primary newest candle.
 - Scalers are fit inside training folds only; the final exported scaler sees only samples whose labels are finite.
