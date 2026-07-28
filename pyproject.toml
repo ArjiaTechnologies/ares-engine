@@ -64,7 +64,7 @@ dev = [
   "pytest>=8.3,<10",
   "pytest-cov>=6,<8",
   "ruff>=0.9,<1",
-  "twine>=6,<7",
+  "twine>=6,<8",
   "types-PyYAML>=6,<7",
 ]
 
