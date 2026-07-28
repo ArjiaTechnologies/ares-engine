@@ -6,6 +6,14 @@ ARES ingests public exchange candles, rejects inconsistent data, builds backward
 
 The Python distribution is `ares-eth-engine`; the import package is `ares_engine`; the CLI is `ares`. The implementation follows the supplied Whiplash technical dossier where practical, but that dossier is a specification—not source code or evidence of correctness.
 
+## See ARES in action
+
+ARES is an ML trading research and paper-inference engine with a deliberately absent live-order path.
+
+[![ARES architecture from public market data through atomic storage, research validation, verified promotion, and fail-closed paper inference; no live-order path.](docs/assets/ares-architecture.svg)](docs/assets/ares-v0.1.0-demo.mp4)
+
+**[Watch the short authentic-command demo](docs/assets/ares-v0.1.0-demo.mp4)**, [read the launch story](docs/launch/ARES_V0.1.0_LAUNCH_POST.md), then clone the repository, run the verifier, and [open a sanitized failure report](https://github.com/ArjiaTechnologies/ares-engine/issues/new?template=public-ingestion-report.yml) if you find an edge case.
+
 ## Safety boundary
 
 - Public market data only by default; configured credential fields are rejected by the public-ingestion audit.
@@ -71,20 +79,35 @@ uv run ares promote artifacts/ares_candidate_001 --config artifacts/best_config.
 uv run ares paper --config artifacts/best_config.yaml
 ```
 
-The bounded evidence workflow contacts only public endpoints and writes independently re-openable evidence:
+The bounded evidence workflow contacts only public endpoints and writes independently re-openable evidence. The [stress-test instructions](#try-to-break-the-public-data-pipeline) select a safely closed interval, run the request twice in isolated storage, and validate the resulting traces, reports, Parquet contents, manifests, and hashes. The authoritative execution evidence is recorded in [docs/audits/sol/SOL_LIVE_INGESTION_EVIDENCE.md](docs/audits/sol/SOL_LIVE_INGESTION_EVIDENCE.md).
+
+## Try to break the public-data pipeline
 
 ```bash
+git clone https://github.com/ArjiaTechnologies/ares-engine.git
+cd ares-engine
+uv sync --extra dev --extra ml
+uv run ares doctor
+uv run ares demo --bars 500
+
+eval "$(uv run python - <<'PY'
+from datetime import UTC, datetime, timedelta
+end = datetime.now(UTC).replace(minute=0, second=0, microsecond=0) - timedelta(hours=72)
+start = end - timedelta(days=15)
+print(f'ARES_START={start:%Y-%m-%dT%H:%M:%SZ}')
+print(f'ARES_END={end:%Y-%m-%dT%H:%M:%SZ}')
+PY
+)"
 uv run ares verify-public-ingestion \
   --primary coinbase --validation kraken \
   --symbol ETH/USD --timeframe 1h \
-  --start 2026-07-10T18:00:00Z --end 2026-07-25T18:00:00Z \
+  --start "$ARES_START" --end "$ARES_END" \
   --page-limit 60 --retries 3 \
   --output artifacts/public-ingestion-audit
-
 uv run ares validate-ingestion-report artifacts/public-ingestion-audit
 ```
 
-Choose a closed historical interval ending at least 48 hours before execution. The command runs the request twice in isolated storage and validates the resulting traces, reports, Parquet contents, manifests, and hashes. The authoritative execution evidence is recorded in [docs/audits/sol/SOL_LIVE_INGESTION_EVIDENCE.md](docs/audits/sol/SOL_LIVE_INGESTION_EVIDENCE.md).
+A useful issue includes your OS, architecture, Python version, ARES commit, installation method, exchange pair, symbol, timeframe, exact command, exit code, sanitized report or hashes, expected behavior, observed behavior, and whether the failure reproduces. **Never include credentials, tokens, account data, cookies, private datasets, or private model bundles.** Use the [public-ingestion report template](https://github.com/ArjiaTechnologies/ares-engine/issues/new?template=public-ingestion-report.yml).
 
 ## Canonical data layout
 

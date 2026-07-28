@@ -1,0 +1,169 @@
+name: Public-ingestion failure report
+description: Report a reproducible Coinbase/Kraken public-ingestion or evidence-validation failure.
+title: "[public ingestion]: "
+labels:
+  - public-ingestion
+  - testing
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for stress-testing ARES. Remove sensitive material before submitting.
+
+        **Never upload API keys, exchange credentials, account data, cookies, tokens, private model bundles, or private datasets.** ARES public verification needs none of them.
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy acknowledgment
+      options:
+        - label: I confirm this report contains no credentials, private account data, tokens, private bundles, or private datasets.
+          required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "Ubuntu 24.04, macOS 15, Windows 11 + WSL2"
+    validations:
+      required: true
+
+  - type: input
+    id: architecture
+    attributes:
+      label: Architecture
+      placeholder: "x86_64, arm64"
+    validations:
+      required: true
+
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      placeholder: "3.12.13"
+    validations:
+      required: true
+
+  - type: input
+    id: ares_version
+    attributes:
+      label: ARES version or commit SHA
+      placeholder: "v0.1.0 or full commit SHA"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Installation method
+      options:
+        - Source clone with uv
+        - GitHub release wheel
+        - Docker
+        - Other (describe below)
+    validations:
+      required: true
+
+  - type: input
+    id: primary_exchange
+    attributes:
+      label: Primary exchange
+      placeholder: "coinbase"
+    validations:
+      required: true
+
+  - type: input
+    id: validation_exchange
+    attributes:
+      label: Validation exchange
+      placeholder: "kraken"
+    validations:
+      required: true
+
+  - type: input
+    id: symbol
+    attributes:
+      label: Symbol
+      placeholder: "ETH/USD"
+    validations:
+      required: true
+
+  - type: input
+    id: timeframe
+    attributes:
+      label: Timeframe
+      placeholder: "1h"
+    validations:
+      required: true
+
+  - type: input
+    id: interval
+    attributes:
+      label: Requested date interval
+      placeholder: "2026-07-10T22:00:00Z to 2026-07-25T22:00:00Z"
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Exact command
+      description: Include the complete command, but remove any sensitive shell context.
+      render: shell
+    validations:
+      required: true
+
+  - type: input
+    id: exit_code
+    attributes:
+      label: Exit code
+      placeholder: "0, 1, or 4"
+    validations:
+      required: true
+
+  - type: input
+    id: failed_gate
+    attributes:
+      label: Gate that failed
+      placeholder: "coverage, quality, alignment, divergence, idempotency, evidence validation"
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized logs or artifact hashes
+      description: Paste only sanitized excerpts or SHA-256 hashes. Do not upload raw private artifacts.
+      render: text
+
+  - type: dropdown
+    id: reliability
+    attributes:
+      label: Reproduction reliability
+      options:
+        - Every run
+        - Intermittent
+        - Happened once
+        - Not yet retried
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional_installation
+    attributes:
+      label: Additional installation or reproduction details
+      description: Include package-manager, shell, container, proxy, or platform details that affect reproduction.
