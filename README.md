@@ -2,7 +2,7 @@
 
 > An open-source machine-learning trading research and paper-inference engine for ETH market-data experimentation.
 
-ARES ingests public exchange candles, rejects inconsistent data, builds backward-looking features, trains sequence models, runs chronological cost-aware validation, exports verified bundles, and emits read-only paper signals. It does not place orders, manage balances, require exchange credentials, or claim profitability.
+ARES ingests public exchange candles, rejects inconsistent data, builds backward-looking features, trains sequence models, runs chronological cost-aware validation, exports verified bundles, and emits read-only paper signals. It does not place orders, manage balances, require exchange credentials, establish profitability, or provide investment advice.
 
 The Python distribution is `ares-eth-engine`; the import package is `ares_engine`; the CLI is `ares`. The implementation follows the supplied Whiplash technical dossier where practical, but that dossier is a specification—not source code or evidence of correctness.
 
@@ -14,6 +14,8 @@ The Python distribution is `ares-eth-engine`; the import package is `ares_engine
 - Backtest insolvency is terminal: equity becomes zero, stays zero, and the candidate fails gates.
 - Bundles are verified and loaded from a private re-hashed snapshot. `joblib` and Keras deserialization still require a trusted publisher; SHA-256 detects change but does not authenticate authorship.
 - Research scores are model-selection estimates, not investment advice or evidence of an edge.
+- Historical performance is not evidence of future results.
+- Public endpoint compatibility can change as exchanges, CCXT mappings, schemas, limits, and retention policies evolve.
 
 See [DISCLAIMER.md](DISCLAIMER.md), [SECURITY.md](SECURITY.md), and [docs/research_protocol.md](docs/research_protocol.md).
 
@@ -32,7 +34,8 @@ See [DISCLAIMER.md](DISCLAIMER.md), [SECURITY.md](SECURITY.md), and [docs/resear
 - Delayed long/flat/short backtesting with fees, slippage, doubled-cost stress, drawdown, turnover, exposure, hit rate, trade counts, and bankruptcy reporting.
 - Immutable seven-file bundles, hostile-file checks, runtime shape validation, manifest-anchored promotion, and fail-closed paper inference.
 - Process locks for ingestion, scheduler cycles, promotion, and paper-signal logs.
-- Python 3.11–3.13 CI, ML/package/Docker jobs, CodeQL when private GitHub Code Security is available, dependency review where supported, and a manual-only public-ingestion workflow. Release automation is intentionally disabled.
+- Python 3.11–3.13 CI, ML/package/Docker jobs, CodeQL, dependency review, and a manual-only public-ingestion workflow.
+- Tag-only release automation builds checksummed wheel/sdist artifacts and a CycloneDX SBOM for a draft GitHub release; it never publishes to PyPI or contacts exchanges.
 
 The detailed component map is in [docs/architecture.md](docs/architecture.md) and [docs/dossier_mapping.md](docs/dossier_mapping.md).
 
@@ -142,7 +145,7 @@ The current authoritative audit is [docs/audits/sol/SOL_AUDIT.md](docs/audits/so
 
 ## Research limitations
 
-ARES does not automate a nested untouched post-search holdout. Search and early stopping use configured chronological validation windows, so final performance claims require a separately locked dataset and a forward paper period. OHLC bars cannot establish intrabar ordering. Fees, slippage, latency, and liquidity are assumptions. Public exchange history can be incomplete, and market regimes change.
+ARES does not implement a locked nested post-search final holdout. Search and early stopping use configured chronological validation windows, so final performance claims require a separately locked dataset and a forward paper period. OHLC bars cannot establish intrabar ordering. Fees, slippage, latency, and liquidity are assumptions. Public exchange history can be incomplete, endpoint compatibility can change, and market regimes change. Historical performance is not evidence of future results.
 
 Before any capital use, a separate execution service would need least-privilege credentials, risk and loss limits, kill switches, reconciliation, observability, incident procedures, independent security review, and an audited forward record. None of that is part of ARES.
 

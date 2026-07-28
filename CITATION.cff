@@ -1,9 +1,10 @@
 cff-version: 1.2.0
 title: ARES Engine
-message: Cite the exact private source commit used for any research result; no public Sol release exists.
+message: Cite ARES Engine v0.1.0 and the exact source commit used for any research result.
 type: software
 authors:
   - name: ARES Engine contributors
 version: 0.1.0
+date-released: 2026-07-28
 license: MIT
 repository-code: https://github.com/ArjiaTechnologies/ares-engine

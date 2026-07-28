@@ -43,7 +43,7 @@ flowchart LR
 | Public evidence | `public_audit.py`; two isolated real requests, exact artifacts/traces, canonical hashes, and strict independent recomputation. |
 | Packaging | `pyproject.toml`; Python 3.11–3.13, platform-specific TensorFlow markers, configs embedded in the wheel. |
 | Docker | Multi-stage non-root image; the ML target includes the reference TensorFlow backend and writable data/artifact directories. |
-| CI/release | Python matrix, ML, package/wheel, audit, Docker, CodeQL, dependency review, and manual public ingestion. Release workflow is disabled. |
+| CI/release | Python matrix, ML, package/wheel, audit, Docker, CodeQL, dependency review, and manual public ingestion. A tag-only workflow stages checksummed distributions and a CycloneDX SBOM as a draft GitHub release; it never publishes to PyPI. |
 
 ## Publication state machine
 
