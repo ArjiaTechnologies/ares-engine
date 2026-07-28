@@ -2,11 +2,11 @@
 
 ## Supported code
 
-During the private alpha phase, only the current `main` branch is supported.
+The current `0.1.x` release line and the current `main` branch receive security fixes.
 
 ## Reporting
 
-Use the repository's private GitHub security-advisory flow. Do not put credentials, exploit details, sensitive data, or issues that could endanger systems or funds in a public issue.
+Use the repository's private vulnerability-reporting or security-advisory flow. Do not put credentials, exploit details, sensitive data, or issues that could endanger systems or funds in a public issue.
 
 ## Trust boundaries
 

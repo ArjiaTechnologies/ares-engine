@@ -1,14 +1,100 @@
-name: Release (disabled)
+name: Release
 
 on:
-  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
 
 permissions:
   contents: read
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  disabled:
-    if: ${{ false }}
+  build-and-stage:
+    name: Build and stage release
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - run: echo "Release automation is intentionally disabled pending a separate public-release review."
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact annotated version tag
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          test "$(git describe --tags --exact-match HEAD)" = "$RELEASE_TAG"
+          test "$(git cat-file -t "refs/tags/$RELEASE_TAG")" = "tag"
+          test "$RELEASE_TAG" = "v$(python -c 'from pathlib import Path; import re; print(re.search(r"^version = \"([^\"]+)\"", Path("pyproject.toml").read_text(), re.MULTILINE).group(1))')"
+          echo "SOURCE_DATE_EPOCH=$(git show -s --format=%ct "$RELEASE_SHA")" >> "$GITHUB_ENV"
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          python-version: "3.11"
+          enable-cache: true
+      - name: Install locked release dependencies
+        run: uv sync --frozen --extra dev --extra ml
+      - name: Static analysis
+        run: |
+          uv run python -m compileall -q src tests
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run mypy --strict src
+      - name: Non-ML tests
+        run: uv run pytest -m "not ml" --cov=ares_engine --cov-branch --cov-report=term-missing
+      - name: Bounded ML lifecycle
+        run: |
+          uv run pytest -m ml
+          uv run ares verify-offline --config configs/smoke.yaml --output-dir /tmp/ares-release-verification --bars 2000
+      - name: Dependency audit
+        run: uv run pip-audit
+      - name: Build and inspect distributions
+        run: |
+          uv build
+          uv run twine check dist/*
+      - name: Installed-wheel smoke outside checkout
+        run: |
+          uv venv /tmp/ares-release-wheel
+          uv pip install --python /tmp/ares-release-wheel/bin/python dist/*.whl
+          cd /tmp
+          /tmp/ares-release-wheel/bin/ares version
+          /tmp/ares-release-wheel/bin/ares doctor
+          /tmp/ares-release-wheel/bin/ares demo --bars 500
+      - name: Generate reproducible CycloneDX SBOM
+        run: >-
+          uv run cyclonedx-py environment
+          /tmp/ares-release-wheel/bin/python
+          --pyproject pyproject.toml
+          --mc-type application
+          --spec-version 1.6
+          --output-format JSON
+          --output-reproducible
+          --validate
+          --output-file dist/ares-engine-v0.1.0.cdx.json
+      - name: Generate SHA-256 checksums
+        run: |
+          cd dist
+          sha256sum ./*.whl ./*.tar.gz ./*.cdx.json > SHA256SUMS.txt
+          sha256sum --check SHA256SUMS.txt
+      - name: Create draft GitHub release and upload assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: >-
+          gh release create "$RELEASE_TAG"
+          --repo "${{ github.repository }}"
+          --verify-tag
+          --draft
+          --title "ARES Engine v0.1.0"
+          --notes-file docs/releases/v0.1.0.md
+          dist/*.whl
+          dist/*.tar.gz
+          dist/SHA256SUMS.txt
+          dist/ares-engine-v0.1.0.cdx.json

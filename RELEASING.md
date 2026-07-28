@@ -1,13 +1,19 @@
 # Releasing ARES Engine
 
-Release automation is intentionally disabled. The current repository is a private, release-ready research codebase, not an authorized public release.
+Releases are deliberate maintainer operations. The workflow never publishes to PyPI, contacts an exchange, uses exchange credentials, or executes orders.
 
-Before a future release, a separately authorized task must:
+## Required gate
 
-1. Re-run the complete local, live-ingestion, Docker, and GitHub Actions evidence matrix.
-2. Review unresolved risks, dependencies, licensing, provenance, security reporting, and public documentation.
-3. Update the version, changelog, and citation metadata intentionally.
-4. Enable a least-privilege tag workflow only after reviewing the exact tag and destination.
-5. Create the tag and GitHub release explicitly. PyPI publication requires separate authorization and trusted publishing configuration.
+1. Start from a reviewed release branch and confirm the package, CLI, changelog, citation, and release-note versions agree.
+2. Run the complete Python matrix, ML lifecycle, dependency audit, package/wheel smoke, Docker job, CodeQL, Dependency Review, and full-history secret scan.
+3. Confirm no unresolved Critical or High security finding exists.
+4. Merge only through the protected `main` branch after required checks pass.
+5. Verify the exact `main` commit, then create and push an annotated `v*` tag pointing to it.
 
-Do not publish model bundles or market datasets without separate license, provenance, hash, privacy, and risk review. No current workflow creates releases or publishes to PyPI.
+## Tag workflow
+
+The pinned, tag-only release workflow checks out the exact annotated tag, installs `uv.lock` with `--frozen`, repeats static/non-ML/ML/audit/package checks, and tests the installed wheel outside the checkout. It builds with `SOURCE_DATE_EPOCH` set from the tag commit, generates a reproducible CycloneDX JSON SBOM and SHA-256 manifest, and stages a draft GitHub release.
+
+Review the draft asset names, sizes, hashes, SBOM validation, workflow logs, release notes, and tag target before publishing the draft. Delete a malformed draft and investigate rather than replacing assets silently.
+
+Do not attach market data, model bundles, scalers, local databases, credentials, audit recovery bundles, environments, or caches. PyPI publication requires a separate authorization and trusted-publishing design.

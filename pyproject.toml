@@ -55,6 +55,7 @@ tracking = [
 ]
 dev = [
   "build>=1.2,<2",
+  "cyclonedx-bom>=7.3.1,<8",
   "hypothesis>=6.120,<7",
   "mypy>=1.13,<2",
   "pandas-stubs>=2.2,<3",

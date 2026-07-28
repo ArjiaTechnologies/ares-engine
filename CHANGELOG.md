@@ -2,7 +2,9 @@
 
 All notable changes to ARES Engine are documented here.
 
-## Unreleased — Sol independent hardening (2026-07-28)
+## 0.1.0 — 2026-07-28
+
+- Published the first controlled public source release of the ETH research and paper-inference engine.
 
 - Replaced eventual multi-file roll-forward with immutable, manifest-verified multi-venue generations and one atomic `CURRENT` pointer. CLI, scheduler, DuckDB, training, promotion, and paper paths capture one generation per operation.
 - Rebuilt public-ingestion evidence as a strict v2 format. The validator reopens and recomputes evidence instead of trusting success flags or checksums over arbitrary bytes.
@@ -16,10 +18,7 @@ All notable changes to ARES Engine are documented here.
 - Built and ran the Linux ARM64 ML container as non-root with Python 3.11.15 and TensorFlow 2.21.0, including the complete offline lifecycle and graceful shutdown.
 - Added Python 3.11–3.13, ML, package, installed-wheel, dependency-audit, Docker, CodeQL, dependency-review, and manual-only public-ingestion workflows with least-privilege permissions and pinned actions.
 - Raised the PyArrow minimum to patched 23.0.1 after clean CI exposed `PYSEC-2026-113` in the previously permitted 21.0.0 resolution.
-- Disabled release automation until a separate authorized public-release task.
+- Added a tag-only, locked, fail-closed GitHub release workflow that builds and tests wheel/sdist artifacts, generates checksums and a CycloneDX SBOM, and never publishes to PyPI.
+- Sanitized non-public commit email metadata across the complete history before public exposure; the audited source trees are unchanged.
 - Archived the Fable 5 review as superseded, untrusted historical material and made the Sol audit authoritative.
-
-## 0.1.0 source snapshot — 2026-07-24
-
-- Initial research and paper-inference engine: public Coinbase/Kraken ingestion, Parquet/DuckDB storage, features, labels, LSTM/TCN models, Optuna, walk-forward validation, cost-aware backtesting, bundles, promotion, scheduling, tests, Docker, and documentation.
-- This entry describes the preserved source snapshot; no release tag or GitHub release is created by the Sol hardening task.
+- Includes public Coinbase/Kraken ingestion, Parquet/DuckDB storage, features, labels, LSTM/TCN models, Optuna, walk-forward validation, cost-aware backtesting, bundles, promotion, scheduling, tests, Docker, and documentation.

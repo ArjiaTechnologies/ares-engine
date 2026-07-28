@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "version": "0.1.0",
+  "verdict": "CONDITIONAL",
+  "repository": "ArjiaTechnologies/ares-engine",
+  "repository_id": "R_kgDOTmei-A",
+  "public_visibility_timestamp": "2026-07-28T20:52:58Z",
+  "clean_main_commit": "3de1360cbe95d004c04a05345a89ba3eab29f240",
+  "release_preparation_commit": "870f09555e6a01d1914f76c57893b9151509053c",
+  "public_analysis_commit": "361cdc56767c007f1d18b6505b2bae8516bd3712",
+  "release_commit": null,
+  "release_pr": 1,
+  "private_ci_run_id": 30397558077,
+  "public_ci_run_id": 30398479089,
+  "codeql_run_id": 30398479199,
+  "codeql_analysis_id": 1540257885,
+  "dependency_review_run_id": 30398479138,
+  "tests": {
+    "local_passed": 245,
+    "coverage_percent": 90,
+    "python": ["3.11", "3.12", "3.13"],
+    "ml_smoke": "passed-public",
+    "docker": "passed-public",
+    "dependency_audit": "passed-public",
+    "package_and_installed_wheel": "passed-public",
+    "anonymous_clone": "pending"
+  },
+  "security": {
+    "gitleaks_version": "8.30.1",
+    "gitleaks_findings": 0,
+    "trufflehog_version": "3.96.0",
+    "trufflehog_verified_findings": 0,
+    "trufflehog_unverified_findings": 0,
+    "secret_scanning": "enabled",
+    "push_protection": "enabled",
+    "code_scanning_alerts": 0,
+    "dependabot_alerts": 0,
+    "secret_scanning_alerts": 0,
+    "dependency_graph_packages": 38,
+    "branch_protection": "enabled",
+    "unresolved_critical": 0,
+    "unresolved_high": 0
+  },
+  "artifacts": {
+    "release_assets": [],
+    "sbom": null
+  },
+  "remaining_gates": [
+    "merge",
+    "post_merge_ci",
+    "tag_build",
+    "github_release",
+    "release_artifact_verification",
+    "anonymous_clone"
+  ]
+}
