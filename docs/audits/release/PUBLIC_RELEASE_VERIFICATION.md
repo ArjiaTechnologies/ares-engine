@@ -14,7 +14,8 @@ anonymous-clone checks are complete.
 - Original pre-rewrite main: `90c6f3646ca32a4a0ca0e68a887e0853418cc5cd`
 - Original pre-rewrite tree: `181a15cae0c44fbaacd6101e6e83ef17a43d2156`
 - Rewritten clean main: `3de1360cbe95d004c04a05345a89ba3eab29f240`
-- Release commit: `870f09555e6a01d1914f76c57893b9151509053c`
+- Release-preparation commit: `870f09555e6a01d1914f76c57893b9151509053c`
+- First public-analysis commit: `361cdc56767c007f1d18b6505b2bae8516bd3712`
 - Old repository ID: `R_kgDOTlVbxQ`
 - Replacement repository ID: `R_kgDOTmei-A`
 - Original recovery bundle SHA-256: `b8a5601ca07ffb475f1a60ddee09c7d8d86799fc4de1362549e013888c2380b1`
@@ -55,9 +56,24 @@ points to the sanitized release commit instead.
 - Dependency audit: passed with no known vulnerabilities.
 - Package, Twine, isolated installed-wheel, Docker non-root, and offline smoke: passed.
 
-## Pending public gates
+## Public security and CI gates
 
-The first real public CodeQL, Dependency Review, public CI, alert review,
-protected-branch configuration, tag build, release artifact checks, and fresh
-anonymous clone are pending at this commit.
+- Public CI run `30398479089`: all seven required jobs passed.
+- CodeQL run `30398479199`: the real `analyze` job completed successfully;
+  analysis `1540257885` evaluated 43 rules and produced zero results.
+- Dependency Review run `30398479138`: the real review action completed successfully.
+- Code-scanning alerts: zero.
+- Dependabot alerts: zero.
+- Secret-scanning alerts: zero.
+- Dependency graph SBOM inventory: 38 packages.
+- Dependabot's initial version-update branches were fetched, author-reviewed,
+  and included in repeated Gitleaks and TruffleHog scans with zero findings.
+- `main` requires pull requests, strict passing checks for the Python matrix,
+  ML, package, dependency, Docker, CodeQL, and Dependency Review jobs; force
+  pushes and deletion are disabled and conversation resolution is required.
 
+## Pending release gates
+
+Merge and post-merge checks, the annotated tag build, final release artifact
+hash verification, release publication, and a fresh anonymous clone remain
+pending. The verdict therefore remains `CONDITIONAL` at this commit.
