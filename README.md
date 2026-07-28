@@ -67,7 +67,12 @@ ARES_KERAS_BACKEND=torch uv run ares verify-offline
 
 ## Verification status
 
-The included July 24, 2026 verification snapshot records 47 passing non-ML tests, one passing Keras ML test, and a complete synthetic bundle lifecycle. The smoke run’s median return under doubled costs was negative, so it is **software verification, not evidence of an edge**. See [`docs/verification.md`](docs/verification.md) and [`docs/verification.json`](docs/verification.json).
+Two verification records exist:
+
+- The original July 24, 2026 snapshot (47 non-ML tests, one Keras ML test, synthetic lifecycle): [`docs/verification.md`](docs/verification.md).
+- The July 27, 2026 Fable 5 third-party audit of this exact source tree: 186 tests (145 non-ML, 41 ML) passing on Python 3.11, 3.12, and 3.13, independent reference implementations for backtest/feature/label math, adversarial leakage tests, hostile-bundle and promotion-race batteries, exact-shape venue simulators, and reproduced-then-fixed defects. See [`docs/audits/FABLE_5_AUDIT.md`](docs/audits/FABLE_5_AUDIT.md).
+
+**Audit limitation, stated plainly:** live bounded public-endpoint ingestion was not executed in the audit sandbox because outbound requests to Coinbase and Kraken were blocked with HTTP 403 at the sandbox proxy. Exact-shape simulations and adversarial local-server tests passed, but they do not establish real endpoint compatibility. Run `ares verify-public-ingestion` (or `scripts/verify_public_ingestion.py`) from an unrestricted machine and review its artifacts; until then the audit verdict is CONDITIONAL, not PASS. The smoke run's median return under doubled costs was negative: all of this is **software verification, not evidence of an edge**.
 
 ## Live public-data workflow
 
@@ -163,7 +168,7 @@ See [`docs/architecture.md`](docs/architecture.md), [`docs/research_protocol.md`
 
 ## Known research limits
 
-ARES v0.1 does not have an audited live return record. Optuna and model selection reuse the configured walk-forward folds, so those scores are selection estimates rather than a locked, untouched final holdout. OHLC bars cannot reveal intrabar event order. Fee and slippage values are assumptions, not guarantees. Exchange history can be incomplete, and market regimes can change after every test passes.
+ARES v0.1 does not have an audited live return record. Optuna and model selection reuse the configured walk-forward folds, so those scores are selection estimates rather than a locked, untouched final holdout; early stopping also monitors the same fold validation window that is later scored, which further inflates fold estimates slightly. OHLC bars cannot reveal intrabar event order. Fee and slippage values are assumptions, not guarantees. Exchange history can be incomplete (validators with capped history depth are only required to cover overlap, freshness, and alignment, never the primary's full start), and market regimes can change after every test passes.
 
 Before capital is even discussed, a candidate needs a locked post-search holdout, a forward paper period, drift monitoring, latency and fill modeling, position and loss limits, kill switches, reconciliation, incident procedures, and independent review. Skipping those steps is not aggressive; it is sloppy.
 
