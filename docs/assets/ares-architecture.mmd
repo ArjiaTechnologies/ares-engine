@@ -1,0 +1,52 @@
+%% ARES Engine v0.1.0 — editable architecture source
+%% The rendered SVG uses the same four trust boundaries and flow.
+flowchart LR
+    subgraph DT["DATA TRUST"]
+        direction LR
+        CB["Coinbase<br/>public OHLCV"] --> TEL["CCXT providers<br/>measured request telemetry"]
+        KR["Kraken<br/>public OHLCV"] --> TEL
+        TEL --> Q["Staging + quality validation<br/>schema · range · UTC grid · freshness<br/>alignment · divergence · continuity"]
+        Q --> G["Immutable multi-venue generation<br/>manifest + atomic CURRENT"]
+        G --> STORE["DuckDB / Parquet<br/>captured generation"]
+    end
+
+    subgraph RS["RESEARCH"]
+        direction LR
+        F["Feature + label pipeline<br/>EMA · RSI · Bollinger<br/>returns · volatility"]
+        W["Purged walk-forward datasets<br/>training-only scaling"]
+        M["LSTM / causal TCN<br/>Optuna"]
+        B["Delayed cost-aware backtesting<br/>fees · slippage · stress · bankruptcy"]
+        F --> W --> M --> B
+    end
+
+    subgraph AP["ARTIFACT PROMOTION"]
+        direction LR
+        V["Verified challenger model bundle"] --> P["Atomic champion promotion"]
+    end
+
+    subgraph PI["PAPER INFERENCE"]
+        direction LR
+        I["Fail-closed paper inference<br/>read-only signal output"] --> N["NO LIVE-ORDER PATH"]
+    end
+
+    STORE --> F
+    B --> V
+    P --> I
+
+    classDef source fill:#e8f1ff,stroke:#2563eb,color:#102a56,stroke-width:2px
+    classDef data fill:#ecfdf5,stroke:#059669,color:#123c31,stroke-width:2px
+    classDef research fill:#f5f3ff,stroke:#7c3aed,color:#2e1a57,stroke-width:2px
+    classDef artifact fill:#fff7ed,stroke:#ea580c,color:#4b2410,stroke-width:2px
+    classDef paper fill:#ecfeff,stroke:#0891b2,color:#123b44,stroke-width:2px
+    classDef blocked fill:#fff1f2,stroke:#e11d48,color:#5e1222,stroke-width:3px
+    class CB,KR source
+    class TEL,Q,G,STORE data
+    class F,W,M,B research
+    class V,P artifact
+    class I paper
+    class N blocked
+
+    style DT fill:#f7fbff,stroke:#7ca6d8,stroke-width:2px
+    style RS fill:#faf8ff,stroke:#a78bfa,stroke-width:2px
+    style AP fill:#fffaf3,stroke:#fb923c,stroke-width:2px
+    style PI fill:#f3fcfd,stroke:#22b8cf,stroke-width:2px

@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title description">
+  <title id="title">ARES Engine v0.1.0 architecture</title>
+  <desc id="description">Public Coinbase and Kraken OHLCV data moves through measured CCXT ingestion, quality gates, and one atomic immutable generation. Research uses causal features, purged walk-forward validation, LSTM or TCN models, Optuna, and delayed cost-aware backtesting. Verified bundles are promoted atomically, then fail-closed paper inference emits read-only signals. There is no live-order path.</desc>
+  <defs>
+    <filter id="shadow" x="-15%" y="-15%" width="130%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#0f172a" flood-opacity="0.10"/>
+    </filter>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#526079"/>
+    </marker>
+  </defs>
+  <style>
+    :root { color-scheme: dark; }
+    .canvas { fill: #0b1220; }
+    .title { fill: #f4f7fb; font: 700 34px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: -0.5px; }
+    .subtitle { fill: #b7c1d1; font: 500 19px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .band { stroke-width: 2; }
+    .band-data { fill: #0d1d31; stroke: #3e6f9f; }
+    .band-research { fill: #18142a; stroke: #69559b; }
+    .band-artifact { fill: #25190f; stroke: #9c5a2b; }
+    .band-paper { fill: #0c2025; stroke: #34798a; }
+    .section { font: 700 16px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 2.4px; }
+    .section-data { fill: #7ab7f1; }
+    .section-research { fill: #b7a5f4; }
+    .section-artifact { fill: #f3a16c; }
+    .section-paper { fill: #69ccdc; }
+    .node { stroke-width: 2; filter: url(#shadow); }
+    .source-node { fill: #142d4b; stroke: #5c9ee6; }
+    .data-node { fill: #103428; stroke: #3dc398; }
+    .research-node { fill: #282040; stroke: #9d83e5; }
+    .artifact-node { fill: #3b2616; stroke: #f08a49; }
+    .paper-node { fill: #12353c; stroke: #51bfd2; }
+    .blocked-node { fill: #3c1721; stroke: #ff6684; stroke-width: 3; }
+    .label { fill: #f4f7fb; font: 700 21px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-anchor: middle; }
+    .detail { fill: #c7cfdb; font: 500 17px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-anchor: middle; }
+    .blocked { fill: #ff8fa4; font: 800 20px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-anchor: middle; letter-spacing: 0.7px; }
+    .arrow { fill: none; stroke: #9ba8bb; stroke-width: 3; marker-end: url(#arrow); }
+    .boundary { fill: none; stroke: #d92d4e; stroke-width: 3; stroke-dasharray: 8 8; }
+  </style>
+
+  <rect class="canvas" width="1600" height="1000"/>
+  <text class="title" x="44" y="48">ARES Engine v0.1.0</text>
+  <text class="subtitle" x="44" y="75">Trust boundaries from public market data to read-only paper signals</text>
+
+  <rect class="band band-data" x="34" y="98" width="1532" height="292" rx="22"/>
+  <text class="section section-data" x="58" y="131">DATA TRUST</text>
+
+  <rect class="node source-node" x="64" y="158" width="224" height="76" rx="14"/>
+  <text class="label" x="176" y="188">Coinbase</text>
+  <text class="detail" x="176" y="215">public OHLCV</text>
+  <rect class="node source-node" x="64" y="258" width="224" height="76" rx="14"/>
+  <text class="label" x="176" y="288">Kraken</text>
+  <text class="detail" x="176" y="315">public OHLCV</text>
+
+  <rect class="node data-node" x="356" y="197" width="260" height="98" rx="14"/>
+  <text class="label" x="486" y="228">CCXT providers</text>
+  <text class="detail" x="486" y="255">measured requests, pages,</text>
+  <text class="detail" x="486" y="277">rows, retries, cursors</text>
+
+  <rect class="node data-node" x="688" y="173" width="356" height="146" rx="14"/>
+  <text class="label" x="866" y="205">Staging + quality gates</text>
+  <text class="detail" x="866" y="234">schema · range · UTC grid · freshness</text>
+  <text class="detail" x="866" y="260">alignment · divergence · continuity</text>
+  <text class="detail" x="866" y="290">reject incomplete or inconsistent data</text>
+
+  <rect class="node data-node" x="1112" y="166" width="382" height="120" rx="14"/>
+  <text class="label" x="1303" y="199">Immutable multi-venue generation</text>
+  <text class="detail" x="1303" y="230">verified manifest</text>
+  <text class="detail" x="1303" y="257">one atomic CURRENT pointer</text>
+  <rect class="node data-node" x="1161" y="316" width="284" height="52" rx="12"/>
+  <text class="label" x="1303" y="349">DuckDB / Parquet</text>
+
+  <path class="arrow" d="M288 196 H326 Q340 196 340 210 V228 H356"/>
+  <path class="arrow" d="M288 296 H326 Q340 296 340 282 V264 H356"/>
+  <path class="arrow" d="M616 246 H688"/>
+  <path class="arrow" d="M1044 246 H1112"/>
+  <path class="arrow" d="M1303 286 V316"/>
+
+  <rect class="band band-research" x="34" y="416" width="1532" height="264" rx="22"/>
+  <text class="section section-research" x="58" y="449">RESEARCH</text>
+
+  <rect class="node research-node" x="58" y="492" width="320" height="124" rx="14"/>
+  <text class="label" x="218" y="523">Feature + label pipeline</text>
+  <text class="detail" x="218" y="552">EMA · RSI · Bollinger · returns</text>
+  <text class="detail" x="218" y="578">volatility · causal labels</text>
+
+  <rect class="node research-node" x="432" y="492" width="320" height="124" rx="14"/>
+  <text class="label" x="592" y="523">Purged walk-forward</text>
+  <text class="detail" x="592" y="552">chronological datasets</text>
+  <text class="detail" x="592" y="578">training-only scaling</text>
+
+  <rect class="node research-node" x="806" y="492" width="280" height="124" rx="14"/>
+  <text class="label" x="946" y="523">LSTM / causal TCN</text>
+  <text class="detail" x="946" y="552">Optuna search</text>
+  <text class="detail" x="946" y="578">full experiment identity</text>
+
+  <rect class="node research-node" x="1140" y="480" width="386" height="148" rx="14"/>
+  <text class="label" x="1333" y="512">Delayed cost-aware backtest</text>
+  <text class="detail" x="1333" y="541">fees · slippage · doubled-cost stress</text>
+  <text class="detail" x="1333" y="570">turnover · drawdown · solvency</text>
+  <text class="detail" x="1333" y="599">terminal bankruptcy semantics</text>
+
+  <path class="arrow" d="M1303 368 V398 H218 V492"/>
+  <path class="arrow" d="M378 554 H432"/>
+  <path class="arrow" d="M752 554 H806"/>
+  <path class="arrow" d="M1086 554 H1140"/>
+
+  <rect class="band band-artifact" x="34" y="706" width="1532" height="132" rx="22"/>
+  <text class="section section-artifact" x="58" y="739">ARTIFACT PROMOTION</text>
+  <rect class="node artifact-node" x="296" y="751" width="416" height="66" rx="14"/>
+  <text class="label" x="504" y="792">Verified challenger model bundle</text>
+  <rect class="node artifact-node" x="884" y="751" width="416" height="66" rx="14"/>
+  <text class="label" x="1092" y="792">Atomic champion promotion</text>
+  <path class="arrow" d="M1333 628 V682 H504 V751"/>
+  <path class="arrow" d="M712 784 H884"/>
+
+  <rect class="band band-paper" x="34" y="864" width="1532" height="112" rx="22"/>
+  <text class="section section-paper" x="58" y="897">PAPER INFERENCE</text>
+  <rect class="node paper-node" x="300" y="889" width="548" height="66" rx="14"/>
+  <text class="label" x="574" y="919">Fail-closed paper inference</text>
+  <text class="detail" x="574" y="943">verified snapshot · read-only signal output</text>
+  <rect class="node blocked-node" x="1040" y="889" width="360" height="66" rx="14"/>
+  <text class="blocked" x="1220" y="929">NO LIVE-ORDER PATH</text>
+  <path class="arrow" d="M1092 817 V850 H574 V889"/>
+  <path class="boundary" d="M1000 880 V964"/>
+</svg>
