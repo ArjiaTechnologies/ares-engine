@@ -2,37 +2,106 @@ name: CI
 
 on:
   push:
+    branches: [main, sol/hardening]
   pull_request:
+    branches: [main]
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  unit:
+  python:
+    name: Python ${{ matrix.python-version }} non-ML
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
         with:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
       - run: uv sync --extra dev
+      - run: uv run python -m compileall -q src tests
       - run: uv run ruff check .
       - run: uv run ruff format --check .
-      - run: uv run mypy src
-      - run: uv run pytest -m "not ml" --cov --cov-report=term-missing
+      - run: uv run mypy --strict src
+      - run: uv run pytest -m "not ml" --cov=ares_engine --cov-branch --cov-report=term-missing
 
   ml-smoke:
+    name: TensorFlow CPU lifecycle
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
         with:
           python-version: "3.11"
           enable-cache: true
       - run: uv sync --extra dev --extra ml
       - run: uv run pytest -m ml
-      - run: uv run ares verify-offline --config configs/smoke.yaml --output-dir /tmp/ares-verification
+      - run: uv run ares verify-offline --config configs/smoke.yaml --output-dir /tmp/ares-verification --bars 2000
+
+  package:
+    name: Build and installed-wheel smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
+        with:
+          python-version: "3.11"
+          enable-cache: true
+      - run: uv sync --extra dev
+      - run: uv build
+      - run: uv run twine check dist/*
+      - run: uv venv /tmp/ares-wheel-env
+      - run: uv pip install --python /tmp/ares-wheel-env/bin/python dist/*.whl
+      - run: cd /tmp && /tmp/ares-wheel-env/bin/ares version
+      - run: cd /tmp && /tmp/ares-wheel-env/bin/ares doctor
+      - run: cd /tmp && /tmp/ares-wheel-env/bin/ares demo --bars 500
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: distributions
+          path: dist/
+          if-no-files-found: error
+
+  dependency-audit:
+    name: Python dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
+        with:
+          python-version: "3.11"
+          enable-cache: true
+      - run: uv sync --extra dev
+      - run: uv run pip-audit
+
+  docker:
+    name: Docker non-root and offline smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - run: docker build --target ml --tag ares-engine:ci .
+      - name: Verify runtime
+        run: |
+          docker run --rm --entrypoint sh ares-engine:ci -c '
+            test "$(id -u)" != "0"
+            test -w /app/data
+            test -w /app/artifacts
+            python --version
+            ares doctor
+            ares demo --bars 500
+            ares verify-offline --config configs/smoke.yaml --output-dir /app/artifacts/verification --bars 2000
+          '
+      - name: Verify graceful shutdown
+        run: |
+          container_id=$(docker run -d --entrypoint sh ares-engine:ci -c 'trap "exit 0" TERM; while :; do sleep 1; done')
+          docker stop --time 10 "$container_id"
+          test "$(docker inspect -f '{{.State.ExitCode}}' "$container_id")" = "0"
+          docker rm "$container_id"

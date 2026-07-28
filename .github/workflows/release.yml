@@ -1,26 +1,14 @@
-name: Release
+name: Release (disabled)
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  build-release:
-    # Guard against accidental releases from forks or mirror imports.
-    if: github.repository == 'ArjiaTechnologies/ares-engine'
+  disabled:
+    if: ${{ false }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-        with:
-          python-version: "3.11"
-          enable-cache: true
-      - run: uv build
-      - name: Publish GitHub release assets
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --generate-notes
+      - run: echo "Release automation is intentionally disabled pending a separate public-release review."
