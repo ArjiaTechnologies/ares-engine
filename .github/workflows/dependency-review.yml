@@ -12,6 +12,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+      - name: Review dependency changes
+        if: github.event.repository.visibility == 'public' || github.event.repository.security_and_analysis.advanced_security.status == 'enabled'
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           fail-on-severity: high
+      - name: Record unsupported private-repository review
+        if: github.event.repository.visibility != 'public' && github.event.repository.security_and_analysis.advanced_security.status != 'enabled'
+        run: echo 'Dependency Review requires GitHub Advanced Security for this private repository; pip-audit remains required in CI.'
