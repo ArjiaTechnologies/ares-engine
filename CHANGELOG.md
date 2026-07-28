@@ -2,41 +2,23 @@
 
 All notable changes to ARES Engine are documented here.
 
-## Unreleased — Fable 5 audit hardening (2026-07-27)
+## Unreleased — Sol independent hardening (2026-07-28)
 
-- Fixed a torn multi-venue commit path: canonical Parquet replacement is now a
-  journaled two-phase commit with automatic roll-forward recovery at the next
-  locked ingestion; staging files can no longer match canonical globs, and the
-  DuckDB view is built from an explicit hidden-file-free list.
-- Applied start-coverage requirements to the primary venue only, so
-  depth-capped validators (Kraken serves roughly the newest 720 candles) no
-  longer make long-range ingestion permanently impossible.
-- Excluded NaN/infinite objective values from Optuna winner selection and
-  scoped study identity by a dataset fingerprint so stale trials from older
-  data can never be selected after the dataset changes.
-- Closed the verify-then-load race in bundle loading via snapshot re-hashing;
-  garbage champion pointers now fail closed with a typed error.
-- Paper inference refuses feeds containing the in-progress candle in either
-  the primary or any validation feed when drop_open_candle is configured.
-- Corrected the `[ml]` extra for non-x86_64 platforms, shipped default
-  configs inside the package so the installed wheel works outside a checkout,
-  validated impossible `--bars` values up front, and reported actual new
-  canonical rows.
-- CI now runs ruff format and strict mypy; the release workflow is guarded to
-  the canonical repository; the Docker image runs as a non-root user.
-- Added `ares verify-public-ingestion`, `ares validate-ingestion-report`, and
-  `scripts/verify_public_ingestion.py` for credential-free bounded live
-  ingestion evidence outside restricted sandboxes.
-- Added 136 tests: independent reference implementations for backtest,
-  features, and labels; adversarial leakage, hostile-bundle, promotion-race,
-  wire-simulator, scheduler, and harness batteries. Test count 50 -> 186.
+- Replaced eventual multi-file roll-forward with immutable, manifest-verified multi-venue generations and one atomic `CURRENT` pointer. CLI, scheduler, DuckDB, training, promotion, and paper paths capture one generation per operation.
+- Rebuilt public-ingestion evidence as a strict v2 format. The validator reopens and recomputes evidence instead of trusting success flags or checksums over arbitrary bytes.
+- Instrumented real provider and HTTP boundaries with per-run/per-venue request, page, cursor, retry, status, raw-row, normalization, deduplication, overlap, empty-page, and short-page telemetry.
+- Expanded Optuna study identity to canonical full OHLCV plus feature, label, sequence, fold, scaling, cost, threshold, gate, model, training, seed, code, and schema configuration.
+- Defined terminal bankruptcy: equity clamps to zero, cannot recover through sign-flipped arithmetic, and bankrupt candidates fail validation/search.
+- Hardened bundle verification and loading against malformed manifests, unlisted/nested/symlinked/hard-linked/oversized/non-finite payloads, metadata and runtime-shape mismatch, and verify/load races.
+- Hardened promotion, champion pointers, paper inference, paper-log locking, configuration path components, and non-finite inputs.
+- Added adversarial, reference, crash, concurrency, property-based, and real-provider tests. The Sol local suite contains 245 passing tests with 90% total branch-aware coverage and at least 90% for every designated critical module.
+- Executed credential-free live Coinbase/Kraken ETH/USD 1h ingestion twice over 360 closed candles per venue; independent evidence validation passed.
+- Built and ran the Linux ARM64 ML container as non-root with Python 3.11.15 and TensorFlow 2.21.0, including the complete offline lifecycle and graceful shutdown.
+- Added Python 3.11–3.13, ML, package, installed-wheel, dependency-audit, Docker, CodeQL, dependency-review, and manual-only public-ingestion workflows with least-privilege permissions and pinned actions.
+- Disabled release automation until a separate authorized public-release task.
+- Archived the Fable 5 review as superseded, untrusted historical material and made the Sol audit authoritative.
 
-## 0.1.0 — 2026-07-24
+## 0.1.0 source snapshot — 2026-07-24
 
-- Recreated the Whiplash-style ETH ML lifecycle as an open-source Python package.
-- Added cursor-complete Coinbase/Kraken ingestion, staged all-venue validation before commit, requested-range coverage, ordered atomic Parquet/DuckDB storage, hard data-quality gates, mandatory independent validation feeds, newest-timestamp alignment, all-configured-venue freshness checks, and p95/latest-candle divergence checks.
-- Added EMA, Wilder RSI, Bollinger, return, volatility, range, and volume features.
-- Added k-ahead dead-zone and triple-barrier labels, fixed-length sequences, LSTM/TCN models, Optuna search, purged walk-forward validation, and cost-aware backtesting.
-- Added hash/size/metadata-verified bundles, manifest-anchored champion/challenger promotion, fail-closed multi-venue paper inference, fail-fast ingestion/cycle/promotion locks, finite-score and artifacts-root promotion checks, and APScheduler quick/deep cycles with optional Optuna search.
-- Added tests, Docker, Python 3.11-3.13 GitHub Actions CI, tag-driven GitHub releases, CodeQL, contributor/security documentation, and deterministic offline lifecycle verification.
-- Kept the ARES Engine brand while using the collision-resistant `ares-eth-engine` Python distribution name.
+- Initial research and paper-inference engine: public Coinbase/Kraken ingestion, Parquet/DuckDB storage, features, labels, LSTM/TCN models, Optuna, walk-forward validation, cost-aware backtesting, bundles, promotion, scheduling, tests, Docker, and documentation.
+- This entry describes the preserved source snapshot; no release tag or GitHub release is created by the Sol hardening task.

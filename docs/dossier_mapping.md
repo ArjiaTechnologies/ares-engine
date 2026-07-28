@@ -1,24 +1,22 @@
 # Dossier-to-ARES implementation map
 
-| Dossier layer or artifact | ARES implementation |
+The Whiplash ETH ML dossier is an architectural reference. It is not source code, a performance record, or proof of correctness.
+
+| Dossier concept | ARES implementation |
 |---|---|
-| Paginated exchange OHLCV | `ares_engine.data.providers.CCXTOHLCVProvider` with an advancing cursor that runs to the requested time boundary |
-| Timestamp cleanup and Parquet | `ares_engine.data.ingest`, `ares_engine.data.storage` |
-| EMA, RSI, Bollinger, returns, volatility | `ares_engine.features` |
-| k-ahead dead-zone and triple-barrier labels | `ares_engine.labels` |
-| Fixed-length rolling sequences | `ares_engine.dataset` |
-| Train-fold-only scaling | `fit_scaler` inside every validation fold |
-| TensorFlow/Keras LSTM | `ares_engine.models.build_model` |
-| Compact residual TCN candidate | `ares_engine.models.build_model` |
-| Optuna model/configuration search | `ares_engine.search` |
-| Walk-forward validation | `ares_engine.validation` |
-| Delayed, fee/slippage-aware backtest | `ares_engine.backtest` |
-| `model.keras`, scaler, feature spec, thresholds, costs | `ares_engine.bundles` |
-| Challenger gates and champion promotion | `ares_engine.training`, `ares_engine.promotion` |
-| Paper/live loader | `ares_engine.live` |
-| Scheduled quick/deep cycles | `ares_engine.scheduler` |
-| Concrete end-to-end verification | `ares verify-offline`, `docs/verification.*` |
+| Paginated exchange OHLCV | `ares_engine.data.providers.CCXTOHLCVProvider` with explicit cursor advancement and measured transport telemetry |
+| Cleanup, Parquet, and SQL analysis | `ares_engine.data.ingest`, immutable generations in `data.storage`, generation-bound DuckDB views |
+| EMA, RSI, Bollinger, return, volatility, volume, range | `ares_engine.features` |
+| k-ahead and triple-barrier labels | `ares_engine.labels` |
+| Rolling sequences and train-only scaling | `ares_engine.dataset` and validation-fold scaler fitting |
+| LSTM and compact TCN | `ares_engine.models` |
+| Configuration search | `ares_engine.search` with material study identity |
+| Walk-forward evaluation | `ares_engine.validation` |
+| Delayed cost-aware simulation | `ares_engine.backtest`, including terminal bankruptcy |
+| Model/scaler/spec/config/metrics/provenance artifact | `ares_engine.bundles` with exact manifests and snapshot loading |
+| Challenger and champion | `ares_engine.training` and locked `ares_engine.promotion` |
+| Paper loader | fail-closed `ares_engine.live`; no order execution |
+| Scheduled cycles | `ares_engine.scheduler` |
+| End-to-end proof | `ares verify-offline`, `ares verify-public-ingestion`, and the Sol audit artifacts |
 
-ARES adds controls that the dossier describes only partially or not at all: staged all-venue validation before canonical commit, requested-range coverage, ordered atomic Parquet replacement, fail-fast ingestion/cycle/promotion locks, mandatory independent validation venues, all-configured-venue metadata/freshness/newest-timestamp checks, p95 and latest-candle price gates, true UTC-grid validation, purged fold boundaries, refusal to select an Optuna trial that failed hard gates, size/hash/metadata bundle verification, rejection of symlinks and unlisted bundle files, champion-manifest anchoring, latest-complete-row inference, read-only paper output, CI, release automation, tests, Docker, security guidance, and explicit claim discipline.
-
-The dossier described MLflow and River as environment-level experiment/drift extensions rather than core execution paths. ARES keeps them in the optional `tracking` dependency group; first-class integration remains roadmap work.
+ARES adds independently verified controls beyond the dossier: mandatory validation venues, complete-generation atomic visibility, strict evidence recomputation, real request traces, UTC-grid/range/freshness/alignment/divergence gates, purged boundaries, insolvent-trial exclusion, hostile bundle handling, promotion and paper-log process locks, non-root Docker, and private least-privilege CI. MLflow and River remain optional dependencies rather than active correctness controls.

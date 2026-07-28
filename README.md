@@ -1,115 +1,102 @@
 # ARES Engine
 
-ARES Engine is an open-source, end-to-end ETH machine-learning research and paper-trading pipeline. It ingests exchange OHLCV data, rejects bad feeds, builds backward-looking market features, creates future-movement labels, trains sequence models, runs chronological walk-forward tests with costs, exports immutable model bundles, and promotes a challenger only when it clears hard gates and beats the incumbent.
+> An open-source machine-learning trading research and paper-inference engine for ETH market-data experimentation.
 
-**ARES is not a magic money printer.** A clean pipeline can still produce a useless strategy. The code is built to make failure visible instead of hiding it behind a pretty equity curve.
+ARES ingests public exchange candles, rejects inconsistent data, builds backward-looking features, trains sequence models, runs chronological cost-aware validation, exports verified bundles, and emits read-only paper signals. It does not place orders, manage balances, require exchange credentials, or claim profitability.
 
-This repository is a clean-room, from-scratch implementation of the architecture described in the supplied Whiplash technical dossier. It contains no Whiplash source code, trained weights, private datasets, credentials, or claimed performance results.
+The Python distribution is `ares-eth-engine`; the import package is `ares_engine`; the CLI is `ares`. The implementation follows the supplied Whiplash technical dossier where practical, but that dossier is a specification—not source code or evidence of correctness.
 
-The public product and repository name is **ARES Engine**. The Python distribution name is `ares-eth-engine`, while the import package remains `ares_engine` and the command remains `ares`. That separation avoids colliding with unrelated projects already using Ares/ARES names.
+## Safety boundary
 
-## What is implemented
+- Public market data only by default; configured credential fields are rejected by the public-ingestion audit.
+- No order-routing methods or live-capital path.
+- Paper inference blocks malformed, stale, open-candle, mismatched, divergent, or non-finite feeds.
+- Backtest insolvency is terminal: equity becomes zero, stays zero, and the candidate fails gates.
+- Bundles are verified and loaded from a private re-hashed snapshot. `joblib` and Keras deserialization still require a trusted publisher; SHA-256 detects change but does not authenticate authorship.
+- Research scores are model-selection estimates, not investment advice or evidence of an edge.
 
-- Coinbase as the primary CCXT feed and Kraken as an independent sanity-check feed.
-- Cursor-complete paginated UTC OHLCV ingestion, resume support, deduplication, closed-candle filtering, and Parquet.
-- DuckDB views over Parquet for local analysis without copying the canonical dataset.
-- Schema, duplicate, missing-candle, requested-range coverage, UTC-grid, OHLC invariant, metadata, volume, freshness, newest-timestamp alignment, and cross-venue p95/latest-candle divergence gates.
-- EMA, close-to-EMA, Wilder RSI, Bollinger levels/position, log returns, realized volatility, and volume state.
-- k-ahead directional labels with a dead zone and a triple-barrier alternative.
-- Fixed-length sequences with training-fold-only `StandardScaler` fitting.
-- TensorFlow/Keras LSTM and compact residual causal TCN candidates.
-- Optuna search over labels, lookback, model family, capacity, dropout, learning rate, and thresholds.
-- Purged expanding-window validation, delayed execution, fees, slippage, and doubled-cost stress tests.
-- Return, Sharpe, drawdown, turnover, exposure, hit rate, and trade-count metrics.
-- Immutable bundles containing `model.keras`, `scaler.joblib`, feature/config/metrics/provenance JSON, and a SHA-256 manifest.
-- Staged all-venue validation before any canonical commit, atomic per-file writes, and fail-fast ingestion/cycle locks.
-- Score-gated champion/challenger promotion and read-only paper signals.
-- Fail-closed paper inference for malformed, stale, mismatched, missing, bulk-divergent, or latest-candle-divergent data across every configured venue.
-- Serialized APScheduler cycles, Docker, GitHub Actions CI/release automation, CodeQL, tests, contribution and security policies.
+See [DISCLAIMER.md](DISCLAIMER.md), [SECURITY.md](SECURITY.md), and [docs/research_protocol.md](docs/research_protocol.md).
 
-The architecture and artifact names map directly to the target technical dossier; see [`docs/dossier_mapping.md`](docs/dossier_mapping.md).
+## Implemented system
 
-## Deliberate hardening
+- Credential-free Coinbase primary and Kraken validation OHLCV ingestion through CCXT.
+- Measured transport telemetry: HTTP requests, `fetch_ohlcv` calls, pages, raw/normalized/deduplicated rows, cursor progression, retries, statuses, empty and short pages.
+- Full-range, schema, UTC-grid, continuity, OHLC, volume, freshness, alignment, and cross-venue divergence gates.
+- Immutable multi-venue generations under `data/snapshots/<generation>/`, verified manifests, and one atomic `CURRENT` pointer. Readers capture a generation once and cannot observe mixed venue state.
+- Parquet as canonical storage and a DuckDB view bound to the captured generation.
+- EMA, Wilder RSI, Bollinger, log-return, realized-volatility, volume-state, and range features.
+- k-ahead dead-zone and triple-barrier labels; same-candle dual barrier hits are neutral.
+- Fixed-length sequences, purged expanding-window folds, and training-fold-only scaling.
+- TensorFlow/Keras LSTM and causal residual TCN models.
+- Optuna study isolation over the full normalized OHLCV payload and every material research configuration.
+- Delayed long/flat/short backtesting with fees, slippage, doubled-cost stress, drawdown, turnover, exposure, hit rate, trade counts, and bankruptcy reporting.
+- Immutable seven-file bundles, hostile-file checks, runtime shape validation, manifest-anchored promotion, and fail-closed paper inference.
+- Process locks for ingestion, scheduler cycles, promotion, and paper-signal logs.
+- Python 3.11–3.13 CI, ML/package/Docker jobs, CodeQL, dependency review where supported, and a manual-only public-ingestion workflow. Release automation is intentionally disabled.
 
-Some common research habits are trash and ARES refuses them:
-
-- **Random train/test splits:** invalid for ordered market data. ARES uses chronological folds.
-- **Global scaling:** leaks future distribution information. ARES fits each scaler on its training fold.
-- **Optimizing fee assumptions:** dishonest. Costs are fixed assumptions and separately stress-tested.
-- **Guessing intrabar barrier order:** OHLC cannot tell which barrier hit first. ARES labels same-bar dual hits neutral.
-- **Committing a half-validated batch:** corrupting. ARES stages every venue, validates the full set, and commits nothing when any gate fails.
-- **Producing signals from bad data:** dangerous. ARES blocks inference and writes no signal when a configured data gate fails.
-- **Promoting the newest model:** reckless. A challenger must pass gates and exceed the champion score.
-- **Calling a backtest “profit proof”:** false. ARES calls it research and paper validation.
+The detailed component map is in [docs/architecture.md](docs/architecture.md) and [docs/dossier_mapping.md](docs/dossier_mapping.md).
 
 ## Quick start
 
-Python 3.11, 3.12, or 3.13 is the supported release runtime. TensorFlow is the reference backend:
+Python 3.11, 3.12, and 3.13 are supported. TensorFlow is the reference ML backend.
 
 ```bash
 git clone https://github.com/ArjiaTechnologies/ares-engine.git
 cd ares-engine
 uv sync --extra dev --extra ml
 uv run ares doctor
-uv run ares demo
-uv run ares demo --ml
-uv run ares verify-offline
+uv run ares demo --bars 500
+uv run ares verify-offline --config configs/smoke.yaml --bars 2000
 ```
 
-A Keras 3/Torch compatibility backend is available for machines where a TensorFlow wheel is unavailable:
+On a platform without a TensorFlow wheel, Keras with Torch can be used as a compatibility backend:
 
 ```bash
 uv sync --extra dev --extra ml-torch
-ARES_KERAS_BACKEND=torch uv run ares verify-offline
+ARES_KERAS_BACKEND=torch uv run ares verify-offline --config configs/smoke.yaml --bars 2000
 ```
 
-`ares demo` uses deterministic synthetic data. `ares verify-offline` goes further: it exercises quality checks, model training, walk-forward validation, bundle export, manifest verification, promotion, bundle reload, freshness enforcement, and paper inference.
-
-## Verification status
-
-Two verification records exist:
-
-- The original July 24, 2026 snapshot (47 non-ML tests, one Keras ML test, synthetic lifecycle): [`docs/verification.md`](docs/verification.md).
-- The July 27, 2026 Fable 5 third-party audit of this exact source tree: 186 tests (145 non-ML, 41 ML) passing on Python 3.11, 3.12, and 3.13, independent reference implementations for backtest/feature/label math, adversarial leakage tests, hostile-bundle and promotion-race batteries, exact-shape venue simulators, and reproduced-then-fixed defects. See [`docs/audits/FABLE_5_AUDIT.md`](docs/audits/FABLE_5_AUDIT.md).
-
-**Audit limitation, stated plainly:** live bounded public-endpoint ingestion was not executed in the audit sandbox because outbound requests to Coinbase and Kraken were blocked with HTTP 403 at the sandbox proxy. Exact-shape simulations and adversarial local-server tests passed, but they do not establish real endpoint compatibility. Run `ares verify-public-ingestion` (or `scripts/verify_public_ingestion.py`) from an unrestricted machine and review its artifacts; until then the audit verdict is CONDITIONAL, not PASS. The smoke run's median return under doubled costs was negative: all of this is **software verification, not evidence of an edge**.
-
-## Live public-data workflow
+## Public-data workflow
 
 ```bash
-# 1. Pull Coinbase and Kraken ETH/USD candles and fail on bad data.
 uv run ares ingest --config configs/default.yaml
-
-# 2. Inspect the persisted quality report.
 uv run ares quality --config configs/default.yaml
-
-# 3. Run the configured LSTM through walk-forward validation.
 uv run ares validate --config configs/default.yaml
-
-# 4. Search LSTM/TCN and label/threshold candidates.
 uv run ares search --config configs/default.yaml
-
-# 5. Train and export the selected configuration as a challenger.
 uv run ares train --config artifacts/best_config.yaml --name ares_candidate_001
-
-# 6. Promote only if it passes gates and beats the current champion.
 uv run ares promote artifacts/ares_candidate_001 --config artifacts/best_config.yaml
-
-# 7. Emit a read-only paper signal from the champion.
 uv run ares paper --config artifacts/best_config.yaml
 ```
 
-Exchange APIs impose different per-request limits and historical-retention rules. ARES advances an explicit cursor until the requested time boundary is complete, stores only closed candles, resumes from the last persisted timestamp, and judges every configured secondary venue on aligned overlap, freshness, and latest-candle divergence. Every venue is staged and checked before canonical files change; gate-failing or truncated batches are reported but never committed, and at least one independent validation venue is mandatory. It does not pretend that an exchange can provide infinite minute history in one request.
+The bounded evidence workflow contacts only public endpoints and writes independently re-openable evidence:
 
-## Data layout
+```bash
+uv run ares verify-public-ingestion \
+  --primary coinbase --validation kraken \
+  --symbol ETH/USD --timeframe 1h \
+  --start 2026-07-10T18:00:00Z --end 2026-07-25T18:00:00Z \
+  --page-limit 60 --retries 3 \
+  --output artifacts/public-ingestion-audit
+
+uv run ares validate-ingestion-report artifacts/public-ingestion-audit
+```
+
+Choose a closed historical interval ending at least 48 hours before execution. The command runs the request twice in isolated storage and validates the resulting traces, reports, Parquet contents, manifests, and hashes. The authoritative execution evidence is recorded in [docs/audits/sol/SOL_LIVE_INGESTION_EVIDENCE.md](docs/audits/sol/SOL_LIVE_INGESTION_EVIDENCE.md).
+
+## Canonical data layout
 
 ```text
 data/
-  raw/<exchange>/eth-usd/<timeframe>.parquet
-  quality/latest.json
-  quality/<source>.json
+  CURRENT
+  snapshots/
+    <generation-id>/
+      raw/<exchange>/eth-usd/<timeframe>.parquet
+      quality/latest.json
+      quality/<source>.json
+      ares.duckdb
+      manifest.json
+  rejected/<run-id>/
   paper/signals.jsonl
-  ares.duckdb
 artifacts/
   best_params.json
   best_meta.json
@@ -125,13 +112,7 @@ artifacts/
   champion.json
 ```
 
-Generated data, databases, model bundles, and secrets are ignored by Git. Commit code and configuration, not private keys or giant market datasets.
-
-## Validation score and gates
-
-The robust score combines median fold Sharpe, median return, mean AUC, worst drawdown, and Sharpe instability. It is a ranking mechanism, not an economic truth. Hard gates remain separate and can reject a high-scoring but dangerous candidate for drawdown, turnover, trade count, weak returns, or cost fragility.
-
-Thresholds, fees, slippage, lookback, label settings, feature columns, and the scaler travel with the model bundle. Inference refuses feature, symbol, timeframe, freshness, or data-quality mismatches instead of silently feeding garbage into a model.
+All canonical readers resolve one captured generation ID. Publication builds and verifies the complete generation, flushes its files, and then atomically replaces `CURRENT`. A crash before replacement leaves the old generation active; a crash after replacement exposes only the complete new generation. Recovery is cleanup, not a consistency requirement.
 
 ## Scheduler
 
@@ -141,41 +122,30 @@ uv run ares cycle deep --config configs/default.yaml
 uv run ares scheduler --config configs/default.yaml
 ```
 
-A quick cycle ingests data and emits a champion paper signal. A deep cycle ingests, runs Optuna when configured, revalidates the winner, trains, exports, and attempts promotion. A filesystem lock prevents quick/deep or ingestion runs from overlapping and trampling the same canonical state. Run deep cycles only after the configuration and resource budget are intentional; blindly retraining models is expensive noise.
+A quick cycle ingests and may emit a champion paper signal. A deep cycle ingests, searches when configured, validates, trains, exports, and attempts promotion. Filesystem locks prevent overlapping mutation.
 
-## Query Parquet through DuckDB
-
-```sql
-SELECT exchange, min(timestamp), max(timestamp), count(*)
-FROM ohlcv
-GROUP BY exchange;
-```
-
-Open `data/ares.duckdb` after ingestion. The `ohlcv` object is a view over Parquet, so the source files remain canonical.
-
-## Development
+## Development verification
 
 ```bash
-uv sync --extra dev
-uv run ruff check .
-uv run pytest -m "not ml"
-
 uv sync --extra dev --extra ml
-uv run pytest -m ml
+uv run python -m compileall -q src tests
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy --strict src
+uv run pytest --cov=ares_engine --cov-branch --cov-report=term-missing
+uv run pip-audit
+uv build
+uv run twine check dist/*
 ```
 
-See [`docs/architecture.md`](docs/architecture.md), [`docs/research_protocol.md`](docs/research_protocol.md), [`CONTRIBUTING.md`](CONTRIBUTING.md), [`SECURITY.md`](SECURITY.md), and [`DISCLAIMER.md`](DISCLAIMER.md).
+The current authoritative audit is [docs/audits/sol/SOL_AUDIT.md](docs/audits/sol/SOL_AUDIT.md). Historical Fable 5 material is preserved under `docs/audits/archive/fable5-untrusted/` as superseded AI-assisted review notes, not independent certification.
 
-## Known research limits
+## Research limitations
 
-ARES v0.1 does not have an audited live return record. Optuna and model selection reuse the configured walk-forward folds, so those scores are selection estimates rather than a locked, untouched final holdout; early stopping also monitors the same fold validation window that is later scored, which further inflates fold estimates slightly. OHLC bars cannot reveal intrabar event order. Fee and slippage values are assumptions, not guarantees. Exchange history can be incomplete (validators with capped history depth are only required to cover overlap, freshness, and alignment, never the primary's full start), and market regimes can change after every test passes.
+ARES does not automate a nested untouched post-search holdout. Search and early stopping use configured chronological validation windows, so final performance claims require a separately locked dataset and a forward paper period. OHLC bars cannot establish intrabar ordering. Fees, slippage, latency, and liquidity are assumptions. Public exchange history can be incomplete, and market regimes change.
 
-Before capital is even discussed, a candidate needs a locked post-search holdout, a forward paper period, drift monitoring, latency and fill modeling, position and loss limits, kill switches, reconciliation, incident procedures, and independent review. Skipping those steps is not aggressive; it is sloppy.
-
-## Scope boundary
-
-ARES stops at paper signals. It does not place orders, manage exchange balances, custody keys, or claim audited live profitability. Those omissions are intentional. Order execution belongs in a separately threat-modeled service with least-privilege credentials and hard operational controls.
+Before any capital use, a separate execution service would need least-privilege credentials, risk and loss limits, kill switches, reconciliation, observability, incident procedures, independent security review, and an audited forward record. None of that is part of ARES.
 
 ## License
 
-MIT. See [`LICENSE`](LICENSE).
+MIT. See [LICENSE](LICENSE).

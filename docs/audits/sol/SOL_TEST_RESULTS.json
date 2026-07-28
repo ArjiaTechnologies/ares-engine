@@ -1,0 +1,66 @@
+{
+  "schema": "ares-sol-audit-v1",
+  "generated_at": "2026-07-28T18:30:00Z",
+  "verdict": "CONDITIONAL",
+  "conditional_reason": "Private GitHub Actions and PR merge pending",
+  "source_identity": {
+    "original_tree": "e48e6ad8e45643ca06e6fff21cb27d5044c04a87",
+    "original_inner_archive_sha256": "0a18e017996746764325b18185f4de320898e41c84bbc91ab695b1979b52a7b0",
+    "fable_baseline_commit": "b7736ac8d15207537d71fb1e8c64fa4e8dd2b844",
+    "fable_final_commit": "a25dba4bfad05e79e7488674cf699fbd45687746",
+    "fable_final_tree": "cd2790ceffc0b77a4838a40b60b2caf44ea467cb",
+    "sol_commits": ["00fe9cc", "8dbac5d", "34472f5"]
+  },
+  "local": {
+    "python": "3.12.13",
+    "tests_passed": 245,
+    "tests_failed": 0,
+    "tests_skipped": 0,
+    "warnings": 32,
+    "total_branch_coverage_percent": 90,
+    "critical_branch_coverage_percent": {
+      "backtest": 100.0,
+      "storage": 97.0,
+      "public_audit": 97.0,
+      "promotion": 100.0,
+      "live": 98.0
+    },
+    "compileall": "PASS",
+    "ruff_check": "PASS",
+    "ruff_format": "PASS (75 files)",
+    "mypy_strict": "PASS (24 source files)",
+    "pip_audit": "PASS (no known vulnerabilities)",
+    "build": "PASS",
+    "twine": "PASS",
+    "installed_wheel_outside_checkout": "PASS"
+  },
+  "live_public_ingestion": {
+    "status": "PASS",
+    "fixture_mode": false,
+    "live_public_endpoints_reached": true,
+    "credentials_used": false,
+    "orders_possible": false,
+    "symbol": "ETH/USD",
+    "timeframe": "1h",
+    "requested_start": "2026-07-10T18:00:00Z",
+    "requested_end": "2026-07-25T18:00:00Z",
+    "expected_rows_per_venue": 360,
+    "coinbase": {"http_requests": 12, "fetch_calls": 6, "pages": 6, "raw_rows": 360, "rows": 360},
+    "kraken": {"http_requests": 8, "fetch_calls": 6, "pages": 6, "raw_rows": 360, "rows": 360},
+    "idempotency": "PASS",
+    "independent_validator": "PASS"
+  },
+  "docker": {
+    "status": "PASS",
+    "server": "29.5.3",
+    "platform": "Linux ARM64",
+    "python": "3.11.15",
+    "tensorflow": "2.21.0",
+    "uid": 1000,
+    "offline_lifecycle": "PASS",
+    "graceful_shutdown_exit_code": 0
+  },
+  "github_actions": {"status": "PENDING"},
+  "unresolved_critical": 0,
+  "unresolved_high": 0
+}

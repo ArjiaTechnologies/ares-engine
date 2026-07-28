@@ -2,52 +2,62 @@
 
 ```mermaid
 flowchart LR
-    CB[Coinbase OHLCV] --> I[Cursor-complete CCXT fetch]
-    KR[Kraken OHLCV] --> I
-    I --> S[Stage all venue snapshots in memory]
-    S --> Q[Schema, continuity, UTC-grid, OHLC, metadata, freshness and venue gates]
-    Q -->|all pass| P[Journaled two-phase Parquet commit with crash roll-forward]
-    Q -->|any fail| X[Report and commit nothing]
-    P --> D[DuckDB view]
-    P --> F[Backward-looking features]
-    F --> L[Future-movement labels]
-    L --> DS[Fixed-length sequences]
-    DS --> W[Purged walk-forward folds]
-    W --> M[LSTM or compact TCN]
-    M --> B[Delayed cost-aware backtest]
-    B --> G[Hard risk gates]
-    G --> E[Hash- and metadata-verified model bundle]
-    E --> C[Champion/challenger promotion]
-    C --> R[Fail-closed paper inference]
+    CB["Coinbase public OHLCV"] --> T["Instrumented CCXT transport"]
+    KR["Kraken public OHLCV"] --> T
+    T --> S["Stage complete venue set"]
+    S --> Q["Coverage, schema, UTC, continuity, OHLCV, freshness, alignment, divergence"]
+    Q -->|"fail"| X["Immutable rejected-run evidence"]
+    Q -->|"pass"| G["Write and verify immutable generation"]
+    G --> P["Atomic CURRENT replacement"]
+    P --> D["Captured-generation Parquet and DuckDB readers"]
+    D --> F["Backward-looking features"]
+    F --> L["Future labels"]
+    L --> W["Purged sequences and train-only scaling"]
+    W --> M["LSTM or causal TCN"]
+    M --> B["Delayed cost-aware backtest"]
+    B --> R["Hard gates including solvency"]
+    R --> E["Verified immutable bundle"]
+    E --> C["Locked champion promotion"]
+    C --> I["Fail-closed paper inference"]
 ```
 
-## Layer boundaries
+## System map
 
-| Layer | Responsibility | Must not do |
-|---|---|---|
-| Provider | Fetch normalized OHLCV with an explicit, advancing time cursor | Decide whether data is trustworthy or stop merely because a page is short |
-| Ingestion | Stage every configured venue, require requested-range coverage, validate the complete candidate set, and serialize commits | Replace canonical files before all gates pass |
-| Quality | Reject malformed, missing, off-grid, stale, mismatched, or divergent data | Repair market history silently |
-| Storage | Atomically preserve canonical Parquet and expose a DuckDB view | Duplicate or mutate model logic |
-| Features | Use current and past market state only | Read future bars or labels |
-| Labels | Encode future outcomes for supervised learning | Become hand-written trading rules |
-| Dataset | Build sequences and chronological folds | Fit a scaler on future data |
-| Model | Estimate directional probability | Own execution assumptions |
-| Backtest | Apply threshold, delay, and costs | Hide turnover or failed folds |
-| Search | Rank only candidates that clear hard gates | Select the least-bad failed trial |
-| Bundle | Keep model, scaler, features, thresholds, costs, metrics, and provenance together | Load unverified or unlisted files |
-| Promotion | Move an atomic champion pointer after gates and score comparison | Mutate old bundles |
-| Paper loader | Rebuild the latest complete feature row and emit a read-only signal | Place an order, fall back to stale rows, or bypass failed data gates |
+| Component | Implementation and invariant |
+|---|---|
+| Configuration | `config.py`; strict Pydantic models forbid unknown/non-finite values, unsafe exchange/symbol path components, invalid ranges, and missing validation venues. |
+| Provider and pagination | `data/providers.py`; an advancing timestamp cursor, bounded retries, closed interval, normalization, and actual transport/page telemetry. Short pages do not imply completion. |
+| Quality | `data/quality.py`; schema, finite numeric data, OHLC relationships, duplicates, grid/continuity, requested range, freshness, metadata, alignment, and divergence. |
+| Storage publication | `data/storage.py`; all files are written to one new generation, hashed, verified, fsynced where supported, then made visible through atomic `CURRENT`. |
+| DuckDB | The view is created inside and bound to one generation. It never globs mutable or abandoned paths. |
+| Features and labels | `features.py` and `labels.py`; causal features, explicit warm-up NaNs, k-ahead and triple-barrier labels, neutral ambiguous same-bar dual touches. |
+| Sequences and folds | `dataset.py`; fixed history windows, chronological expanding folds, purge at least label horizon, training-fold-only scaler fitting. |
+| Models | `models.py`; TensorFlow/Keras LSTM and causal residual TCN, chronological batches, finite prediction checks, `.keras` export/reload. |
+| Search | `search.py`; material data/config identity isolates Optuna studies, and only finite, solvent, gate-passing trials are eligible. |
+| Backtest | `backtest.py`; one-bar signal delay, position-change costs, explicit turnover/trades, terminal insolvency, and finite metrics. |
+| Bundles | `bundles.py`; exact seven-file payload, size/hash/type/link/path checks, metadata/runtime shape validation, and private re-hashed load snapshot. |
+| Promotion | `promotion.py`; process lock, re-verification, finite metrics and gates, artifacts-root containment, manifest-anchored atomic champion pointer. |
+| Paper | `live.py`; captures one generation, rebuilds exact feature order, blocks open/stale/divergent/non-finite/mismatched input, writes read-only signals under a process lock. |
+| Scheduling | `scheduler.py`; one fail-fast process lock serializes ingestion/training/promotion; each operation captures a generation once. |
+| CLI | `cli.py`; installed-wheel-safe config resolution and explicit research, evidence, lifecycle, and scheduler commands. |
+| Public evidence | `public_audit.py`; two isolated real requests, exact artifacts/traces, canonical hashes, and strict independent recomputation. |
+| Packaging | `pyproject.toml`; Python 3.11–3.13, platform-specific TensorFlow markers, configs embedded in the wheel. |
+| Docker | Multi-stage non-root image; the ML target includes the reference TensorFlow backend and writable data/artifact directories. |
+| CI/release | Python matrix, ML, package/wheel, audit, Docker, CodeQL, dependency review, and manual public ingestion. Release workflow is disabled. |
 
-## Trust boundaries
+## Publication state machine
 
-- Raw exchange responses are untrusted until the requested range is covered and every configured venue and cross-venue check passes.
-- Candidate snapshots stay in memory until the full batch is valid. A failed batch never replaces canonical Parquet. The commit itself is journaled two-phase: staged files are fsynced, a rename journal is persisted, and an interrupted commit is rolled forward to completion by the next locked ingestion, so canonical multi-venue state converges to the validated snapshot.
-- Ingestion and scheduler cycles use fail-fast filesystem locks, so concurrent processes cannot race canonical data or promotion state.
-- At least one configured secondary venue is mandatory. Each validator is an independent sanity check, not a source blended into the target, and its newest candle must align with the primary newest candle.
-- Scalers are fit inside training folds only; the final exported scaler sees only samples whose labels are finite.
-- Signals are delayed one bar and charged on every position change, with a doubled-cost stress path.
-- Bundles are immutable; every listed file is size/SHA-256-verified, metadata must agree with config, unexpected files and symlinks are rejected, and the champion pointer anchors the promoted manifest hash.
-- Promotion changes only an atomic pointer; it never mutates an existing model bundle.
-- Paper inference blocks stale, malformed, mismatched, missing, p95-divergent, latest-candle-divergent, non-finite, or out-of-range inputs and writes no signal.
-- Live order execution is intentionally absent.
+1. Acquire the ingestion process lock.
+2. Capture the current generation and build complete merged venue candidates in memory.
+3. Validate every venue and cross-venue gate.
+4. Write Parquet, quality reports, DuckDB, and a manifest under a fresh immutable generation ID.
+5. Re-open and verify hashes, types, paths, row metadata, and generation completeness.
+6. Fsync generation files/directories where supported.
+7. Write a temporary pointer, fsync it, and atomically replace `CURRENT`.
+8. Readers capture `CURRENT` once and resolve all files under that generation.
+
+An interruption in steps 1–6 leaves the old generation active. After step 7, the complete new generation is active. Abandoned generation cleanup is optional and cannot restore or damage reader consistency.
+
+## Trust and scope
+
+The filesystem, Python runtime, dependency registry, TLS trust store, CCXT, TensorFlow/Keras, and trusted bundle publisher remain external trust roots. The engine has no authenticated exchange call or order path. It emits only research artifacts and paper signals.
