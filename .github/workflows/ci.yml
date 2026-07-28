@@ -22,12 +22,12 @@ jobs:
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
-      - run: uv sync --extra dev
+      - run: uv sync --frozen --extra dev
       - run: uv run python -m compileall -q src tests
       - run: uv run ruff check .
       - run: uv run ruff format --check .
@@ -38,12 +38,12 @@ jobs:
     name: TensorFlow CPU lifecycle
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           python-version: "3.11"
           enable-cache: true
-      - run: uv sync --extra dev --extra ml
+      - run: uv sync --frozen --extra dev --extra ml
       - run: uv run pytest -m ml
       - run: uv run ares verify-offline --config configs/smoke.yaml --output-dir /tmp/ares-verification --bars 2000
 
@@ -51,12 +51,12 @@ jobs:
     name: Build and installed-wheel smoke
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           python-version: "3.11"
           enable-cache: true
-      - run: uv sync --extra dev
+      - run: uv sync --frozen --extra dev
       - run: uv build
       - run: uv run twine check dist/*
       - run: uv venv /tmp/ares-wheel-env
@@ -64,7 +64,7 @@ jobs:
       - run: cd /tmp && /tmp/ares-wheel-env/bin/ares version
       - run: cd /tmp && /tmp/ares-wheel-env/bin/ares doctor
       - run: cd /tmp && /tmp/ares-wheel-env/bin/ares demo --bars 500
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: distributions
           path: dist/
@@ -74,19 +74,19 @@ jobs:
     name: Python dependency audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           python-version: "3.11"
           enable-cache: true
-      - run: uv sync --extra dev
+      - run: uv sync --frozen --extra dev
       - run: uv run pip-audit
 
   docker:
     name: Docker non-root and offline smoke
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: docker build --target ml --tag ares-engine:ci .
       - name: Verify runtime
         run: |
