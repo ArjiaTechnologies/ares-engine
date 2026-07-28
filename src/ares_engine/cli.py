@@ -18,7 +18,7 @@ from . import __version__
 from .config import AresConfig, load_config
 from .data.ingest import ingest_market_data
 from .data.quality import validate_cross_venue, validate_ohlcv
-from .data.storage import market_path, read_market
+from .data.storage import current_generation, market_path, quality_path, read_market
 from .live import generate_paper_signal
 from .models import backend_name
 from .promotion import promote as promote_bundle
@@ -60,16 +60,18 @@ def _json(payload: Any) -> None:
 
 def _primary_frame(config_path: Path) -> tuple[AresConfig, Path, pd.DataFrame]:
     config = load_config(_resolve_config(config_path))
+    generation = current_generation(config.storage.root)
     path = market_path(
         config.storage.root,
         config.data.primary_exchange,
         config.data.symbol,
         config.data.timeframe,
+        generation=generation,
     )
     frame = read_market(path)
     if frame.empty:
         raise typer.BadParameter(f"No primary data at {path}; run `ares ingest` first")
-    secondary_frames = _secondary_frames(config)
+    secondary_frames = _secondary_frames(config, generation=generation)
     reference = utc_now()
     freshness_limit = config.data.max_staleness_bars if config.data.until is None else None
     failures: list[str] = []
@@ -99,7 +101,7 @@ def _primary_frame(config_path: Path) -> tuple[AresConfig, Path, pd.DataFrame]:
             expected_timeframe=config.data.timeframe,
             as_of=reference if freshness_limit is not None else None,
             max_staleness_bars=freshness_limit,
-            expected_start=config.data.since,
+            expected_start=None,
             expected_end=config.data.until,
         )
         failures.extend(
@@ -127,7 +129,9 @@ def _primary_frame(config_path: Path) -> tuple[AresConfig, Path, pd.DataFrame]:
     return config, path, frame
 
 
-def _secondary_frames(config: AresConfig) -> dict[str, pd.DataFrame]:
+def _secondary_frames(
+    config: AresConfig, *, generation: str | None = None
+) -> dict[str, pd.DataFrame]:
     return {
         exchange: read_market(
             market_path(
@@ -135,6 +139,7 @@ def _secondary_frames(config: AresConfig) -> dict[str, pd.DataFrame]:
                 exchange,
                 config.data.symbol,
                 config.data.timeframe,
+                generation=generation,
             )
         )
         for exchange in config.data.validation_exchanges
@@ -206,7 +211,8 @@ def quality_report(
 ) -> None:
     """Print the most recent persisted data-quality report."""
     config = load_config(_resolve_config(config_path))
-    path = config.storage.root / "quality" / "latest.json"
+    generation = current_generation(config.storage.root)
+    path = quality_path(config.storage.root, "latest", generation=generation)
     if not path.exists():
         raise typer.BadParameter("No quality report exists; run `ares ingest` first")
     typer.echo(path.read_text(encoding="utf-8"), nl=False)
@@ -287,18 +293,20 @@ def paper(
     selected = bundle or resolve_champion(config.storage.artifacts)
     if selected is None:
         raise typer.BadParameter("No champion exists and no --bundle was supplied")
+    generation = current_generation(config.storage.root)
     primary = read_market(
         market_path(
             config.storage.root,
             config.data.primary_exchange,
             config.data.symbol,
             config.data.timeframe,
+            generation=generation,
         )
     )
     result = generate_paper_signal(
         selected,
         primary,
-        secondary_ohlcv=_secondary_frames(config),
+        secondary_ohlcv=_secondary_frames(config, generation=generation),
         log_path=config.storage.root / "paper" / "signals.jsonl",
     )
     _json(result.to_dict())

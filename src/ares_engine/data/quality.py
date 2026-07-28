@@ -138,7 +138,7 @@ def validate_ohlcv(
             invariant_count,
         )
 
-    expected = pd.Timedelta(seconds=timeframe_to_seconds(timeframe))
+    expected = pd.Timedelta(timeframe_to_seconds(timeframe), unit="s")
     expected_ns = int(expected.value)
     valid_timestamps = work["timestamp"].dropna().sort_values()
     delta_ns = valid_timestamps.diff().dropna().astype("int64")

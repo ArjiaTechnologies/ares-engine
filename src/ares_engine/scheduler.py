@@ -12,7 +12,7 @@ from filelock import FileLock, Timeout
 
 from .config import AresConfig, load_config
 from .data.ingest import IngestionResult, ingest_market_data
-from .data.storage import market_path, read_market
+from .data.storage import current_generation, market_path, read_market
 from .exceptions import DataQualityError
 from .live import generate_paper_signal
 from .promotion import promote, resolve_champion
@@ -43,7 +43,9 @@ def _require_committed_ingestion(result: IngestionResult) -> None:
     raise DataQualityError(f"Scheduler cycle stopped after failed ingestion: {detail}")
 
 
-def _read_validation_frames(config: AresConfig) -> dict[str, pd.DataFrame]:
+def _read_validation_frames(
+    config: AresConfig, *, generation: str | None = None
+) -> dict[str, pd.DataFrame]:
     return {
         exchange: read_market(
             market_path(
@@ -51,6 +53,7 @@ def _read_validation_frames(config: AresConfig) -> dict[str, pd.DataFrame]:
                 exchange,
                 config.data.symbol,
                 config.data.timeframe,
+                generation=generation,
             )
         )
         for exchange in config.data.validation_exchanges
@@ -66,18 +69,20 @@ def quick_cycle(config_path: Path) -> None:
         if champion is None:
             LOGGER.warning("No champion exists; quick cycle ends after ingestion")
             return
+        generation = current_generation(config.storage.root)
         primary = read_market(
             market_path(
                 config.storage.root,
                 config.data.primary_exchange,
                 config.data.symbol,
                 config.data.timeframe,
+                generation=generation,
             )
         )
         generate_paper_signal(
             champion,
             primary,
-            secondary_ohlcv=_read_validation_frames(config),
+            secondary_ohlcv=_read_validation_frames(config, generation=generation),
             log_path=config.storage.root / "paper" / "signals.jsonl",
         )
 
@@ -87,11 +92,13 @@ def deep_cycle(config_path: Path) -> None:
     with _cycle_lock(config.storage.root):
         ingestion = ingest_market_data(config)
         _require_committed_ingestion(ingestion)
+        generation = current_generation(config.storage.root)
         source = market_path(
             config.storage.root,
             config.data.primary_exchange,
             config.data.symbol,
             config.data.timeframe,
+            generation=generation,
         )
         frame = read_market(source)
         candidate_config = config

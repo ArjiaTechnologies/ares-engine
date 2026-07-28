@@ -54,15 +54,12 @@ def test_failed_cross_venue_gate_does_not_replace_canonical_data(
 
     monkeypatch.setattr("ares_engine.data.ingest.read_market", lambda path: pd.DataFrame())
     monkeypatch.setattr(
-        "ares_engine.data.ingest.stage_market",
-        lambda path, frame: writes.append(path.as_posix()) or Path("unused-temp"),
+        "ares_engine.data.ingest.create_generation",
+        lambda *args, **kwargs: writes.append("generation") or "unused",
     )
     monkeypatch.setattr(
-        "ares_engine.data.ingest.commit_staged",
-        lambda temp, final: writes.append(final.as_posix()),
-    )
-    monkeypatch.setattr(
-        "ares_engine.data.ingest.sync_duckdb", lambda *args: writes.append("duckdb")
+        "ares_engine.data.ingest.publish_generation",
+        lambda *args, **kwargs: writes.append("pointer"),
     )
 
     result = ingest_market_data(
@@ -94,15 +91,12 @@ def test_current_ingestion_rejects_stale_venues_before_commit(
     monkeypatch.setattr("ares_engine.data.ingest.utc_now", lambda: reference.to_pydatetime())
     monkeypatch.setattr("ares_engine.data.ingest.read_market", lambda path: pd.DataFrame())
     monkeypatch.setattr(
-        "ares_engine.data.ingest.stage_market",
-        lambda path, frame: writes.append(path.as_posix()) or Path("unused-temp"),
+        "ares_engine.data.ingest.create_generation",
+        lambda *args, **kwargs: writes.append("generation") or "unused",
     )
     monkeypatch.setattr(
-        "ares_engine.data.ingest.commit_staged",
-        lambda temp, final: writes.append(final.as_posix()),
-    )
-    monkeypatch.setattr(
-        "ares_engine.data.ingest.sync_duckdb", lambda *args: writes.append("duckdb")
+        "ares_engine.data.ingest.publish_generation",
+        lambda *args, **kwargs: writes.append("pointer"),
     )
 
     result = ingest_market_data(
@@ -145,15 +139,12 @@ def test_truncated_requested_range_does_not_commit(monkeypatch, tmp_path: Path) 
 
     monkeypatch.setattr("ares_engine.data.ingest.read_market", lambda path: pd.DataFrame())
     monkeypatch.setattr(
-        "ares_engine.data.ingest.stage_market",
-        lambda path, frame: writes.append(path.as_posix()) or Path("unused-temp"),
+        "ares_engine.data.ingest.create_generation",
+        lambda *args, **kwargs: writes.append("generation") or "unused",
     )
     monkeypatch.setattr(
-        "ares_engine.data.ingest.commit_staged",
-        lambda temp, final: writes.append(final.as_posix()),
-    )
-    monkeypatch.setattr(
-        "ares_engine.data.ingest.sync_duckdb", lambda *args: writes.append("duckdb")
+        "ares_engine.data.ingest.publish_generation",
+        lambda *args, **kwargs: writes.append("pointer"),
     )
 
     result = ingest_market_data(

@@ -39,3 +39,18 @@ def test_validation_exchanges_must_be_unique() -> None:
 def test_at_least_one_validation_exchange_is_required() -> None:
     with pytest.raises(ValidationError, match="at least 1 item"):
         AresConfig.model_validate({"data": {"validation_exchanges": []}})
+
+
+@pytest.mark.parametrize("exchange", ["../kraken", "kraken/../../tmp", "kraken\\tmp"])
+def test_exchange_identifiers_cannot_escape_storage_paths(exchange: str) -> None:
+    raw = AresConfig().model_dump(mode="python")
+    raw["data"]["validation_exchanges"] = [exchange]
+    with pytest.raises(ValidationError, match="safe CCXT exchange"):
+        AresConfig.model_validate(raw)
+
+
+def test_non_finite_configuration_is_rejected() -> None:
+    raw = AresConfig().model_dump(mode="python")
+    raw["gates"]["min_median_sharpe"] = float("nan")
+    with pytest.raises(ValidationError, match="finite"):
+        AresConfig.model_validate(raw)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
@@ -13,7 +14,7 @@ from .utils import timeframe_to_seconds
 
 
 class StrictModel(BaseModel):
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, allow_inf_nan=False)
 
 
 class ProjectConfig(StrictModel):
@@ -50,16 +51,16 @@ class DataConfig(StrictModel):
     @classmethod
     def normalize_primary_exchange(cls, value: str) -> str:
         normalized = value.strip().lower()
-        if not normalized:
-            raise ValueError("primary_exchange must not be empty")
+        if not re.fullmatch(r"[a-z0-9_]+", normalized):
+            raise ValueError("primary_exchange must be a safe CCXT exchange identifier")
         return normalized
 
     @field_validator("validation_exchanges")
     @classmethod
     def normalize_validation_exchanges(cls, values: list[str]) -> list[str]:
         normalized = [value.strip().lower() for value in values]
-        if any(not value for value in normalized):
-            raise ValueError("validation_exchanges must not contain empty values")
+        if any(not re.fullmatch(r"[a-z0-9_]+", value) for value in normalized):
+            raise ValueError("validation_exchanges must contain safe CCXT exchange identifiers")
         if len(normalized) != len(set(normalized)):
             raise ValueError("validation_exchanges must be unique")
         return normalized
@@ -68,8 +69,8 @@ class DataConfig(StrictModel):
     @classmethod
     def normalize_symbol(cls, value: str) -> str:
         normalized = value.strip()
-        if not normalized:
-            raise ValueError("symbol must not be empty")
+        if not re.fullmatch(r"[A-Za-z0-9._-]+/[A-Za-z0-9._-]+(?::[A-Za-z0-9._-]+)?", normalized):
+            raise ValueError("symbol must be a safe BASE/QUOTE market identifier")
         return normalized
 
     @field_validator("since", "until", mode="before")

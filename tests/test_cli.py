@@ -24,7 +24,9 @@ def test_primary_frame_revalidates_stored_venues_without_name_errors(
 
     monkeypatch.setattr("ares_engine.cli.load_config", lambda _: config)
     monkeypatch.setattr("ares_engine.cli.read_market", lambda _: primary)
-    monkeypatch.setattr("ares_engine.cli._secondary_frames", lambda _: {"kraken": secondary})
+    monkeypatch.setattr(
+        "ares_engine.cli._secondary_frames", lambda _, **kwargs: {"kraken": secondary}
+    )
 
     loaded_config, _, loaded_frame = _primary_frame(Path("configs/smoke.yaml"))
     assert loaded_config is config
