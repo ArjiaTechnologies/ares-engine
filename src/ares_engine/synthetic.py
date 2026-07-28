@@ -28,7 +28,7 @@ def make_synthetic_ohlcv(
     high = np.maximum(open_price, close) * (1.0 + spread)
     low = np.minimum(open_price, close) * (1.0 - spread)
     volume = rng.lognormal(mean=7.5, sigma=0.5, size=bars)
-    frequency = pd.Timedelta(seconds=timeframe_to_seconds(timeframe))
+    frequency = pd.Timedelta(timeframe_to_seconds(timeframe), unit="s")
     timestamp = pd.date_range("2024-01-01", periods=bars, freq=frequency, tz="UTC")
     return pd.DataFrame(
         {

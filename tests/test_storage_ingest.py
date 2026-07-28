@@ -6,7 +6,13 @@ import pytest
 
 from ares_engine.config import load_config
 from ares_engine.data.ingest import ingest_market_data
-from ares_engine.data.storage import market_path, read_market, sync_duckdb
+from ares_engine.data.storage import (
+    current_generation,
+    generation_duckdb_path,
+    market_path,
+    read_market,
+    sync_duckdb,
+)
 from ares_engine.synthetic import make_synthetic_ohlcv
 
 pytest.importorskip("pyarrow")
@@ -65,7 +71,9 @@ def test_ingest_persists_and_resumes(tmp_path: Path) -> None:
     stored = read_market(path)
     assert len(stored) == 500
     assert path.exists()
-    assert config.storage.duckdb_path.exists()
+    generation = current_generation(config.storage.root)
+    assert generation is not None
+    assert generation_duckdb_path(config.storage.root, generation).exists()
 
 
 def test_duckdb_view_exists_before_first_parquet_file(tmp_path: Path) -> None:

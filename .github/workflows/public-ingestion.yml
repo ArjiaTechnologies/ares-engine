@@ -1,0 +1,56 @@
+name: Public ingestion audit (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      start:
+        description: Optional UTC start (defaults to 15 days before the computed end)
+        required: false
+        type: string
+      end:
+        description: Optional UTC end (defaults to 72 hours before current UTC)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  live-public-data:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
+        with:
+          python-version: "3.11"
+          enable-cache: true
+      - run: uv sync --extra dev
+      - name: Select bounded historical window
+        id: window
+        env:
+          INPUT_START: ${{ inputs.start }}
+          INPUT_END: ${{ inputs.end }}
+        run: |
+          uv run python - <<'PY' >> "$GITHUB_OUTPUT"
+          import os
+          from datetime import UTC, datetime, timedelta
+          end = os.environ.get("INPUT_END") or (datetime.now(UTC) - timedelta(hours=72)).replace(minute=0, second=0, microsecond=0).isoformat().replace("+00:00", "Z")
+          parsed_end = datetime.fromisoformat(end.replace("Z", "+00:00"))
+          start = os.environ.get("INPUT_START") or (parsed_end - timedelta(days=15)).isoformat().replace("+00:00", "Z")
+          print(f"start={start}")
+          print(f"end={end}")
+          PY
+      - name: Run production ingestion twice and validate evidence
+        run: >-
+          uv run ares verify-public-ingestion
+          --primary coinbase --validation kraken
+          --symbol ETH/USD --timeframe 1h
+          --start "${{ steps.window.outputs.start }}"
+          --end "${{ steps.window.outputs.end }}"
+          --page-limit 60
+          --output artifacts/public-ingestion-audit
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: public-ingestion-evidence
+          path: artifacts/public-ingestion-audit/
+          if-no-files-found: error

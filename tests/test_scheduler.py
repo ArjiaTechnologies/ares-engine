@@ -22,7 +22,7 @@ def test_deep_cycle_runs_search_before_training(monkeypatch, tmp_path: Path) -> 
     monkeypatch.setattr("ares_engine.scheduler.load_config", lambda _: config)
     monkeypatch.setattr(
         "ares_engine.scheduler.ingest_market_data",
-        lambda _: (calls.append("ingest") or SimpleNamespace(passed=True, committed=True)),
+        lambda _: calls.append("ingest") or SimpleNamespace(passed=True, committed=True),
     )
     monkeypatch.setattr("ares_engine.scheduler.read_market", lambda _: frame)
 

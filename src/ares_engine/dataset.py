@@ -22,7 +22,8 @@ class SequenceDataset:
 
     @property
     def directional_mask(self) -> np.ndarray:
-        return np.isfinite(self.labels) & (self.labels != 0)
+        mask: np.ndarray = np.isfinite(self.labels) & (self.labels != 0)
+        return mask
 
     @property
     def y_binary(self) -> np.ndarray:
@@ -60,7 +61,9 @@ class PurgedWalkForwardSplitter:
     def split(self, n_samples: int) -> Iterator[Fold]:
         validation_start = self.min_train_size + self.purge_size
         fold_number = 0
-        while validation_start + self.validation_size <= n_samples and fold_number < self.max_splits:
+        while (
+            validation_start + self.validation_size <= n_samples and fold_number < self.max_splits
+        ):
             train_end = validation_start - self.purge_size
             train_indices = np.arange(0, train_end, dtype="int64")
             validation_indices = np.arange(
@@ -105,7 +108,9 @@ def build_sequence_dataset(
         source_rows.append(end)
 
     if not sequences:
-        raise ValueError("No complete sequences could be built; provide more history or shorter features")
+        raise ValueError(
+            "No complete sequences could be built; provide more history or shorter features"
+        )
 
     return SequenceDataset(
         X=np.asarray(sequences, dtype="float32"),
@@ -129,4 +134,5 @@ def fit_scaler(X_train: np.ndarray) -> StandardScaler:
 def transform_sequences(scaler: StandardScaler, X: np.ndarray) -> np.ndarray:
     original_shape = X.shape
     transformed = scaler.transform(X.reshape(-1, X.shape[-1]))
-    return transformed.reshape(original_shape).astype("float32")
+    reshaped: np.ndarray = transformed.reshape(original_shape).astype("float32")
+    return reshaped

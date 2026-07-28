@@ -51,7 +51,14 @@ def atomic_write_json(path: Path, payload: Any) -> None:
             mode="w", encoding="utf-8", dir=path.parent, prefix=f".{path.name}.", delete=False
         ) as handle:
             temp_name = handle.name
-            json.dump(payload, handle, indent=2, sort_keys=True, default=json_default)
+            json.dump(
+                payload,
+                handle,
+                indent=2,
+                sort_keys=True,
+                default=json_default,
+                allow_nan=False,
+            )
             handle.write("\n")
             handle.flush()
             os.fsync(handle.fileno())

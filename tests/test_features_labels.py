@@ -59,7 +59,9 @@ def test_rsi_boundary_values_are_not_neutralized() -> None:
     rising["open"] = rising["close"]
     rising["high"] = rising["close"] * 1.001
     rising["low"] = rising["close"] * 0.999
-    config = FeatureConfig(ema_periods=[8], rsi_period=14, volatility_windows=[12], volume_z_window=12)
+    config = FeatureConfig(
+        ema_periods=[8], rsi_period=14, volatility_windows=[12], volume_z_window=12
+    )
     rising_features = build_features(rising, config).frame
     assert rising_features["rsi_14"].dropna().iloc[-1] == 100.0
 

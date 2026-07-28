@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
@@ -13,7 +14,7 @@ from .utils import timeframe_to_seconds
 
 
 class StrictModel(BaseModel):
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, allow_inf_nan=False)
 
 
 class ProjectConfig(StrictModel):
@@ -50,16 +51,16 @@ class DataConfig(StrictModel):
     @classmethod
     def normalize_primary_exchange(cls, value: str) -> str:
         normalized = value.strip().lower()
-        if not normalized:
-            raise ValueError("primary_exchange must not be empty")
+        if not re.fullmatch(r"[a-z0-9_]+", normalized):
+            raise ValueError("primary_exchange must be a safe CCXT exchange identifier")
         return normalized
 
     @field_validator("validation_exchanges")
     @classmethod
     def normalize_validation_exchanges(cls, values: list[str]) -> list[str]:
         normalized = [value.strip().lower() for value in values]
-        if any(not value for value in normalized):
-            raise ValueError("validation_exchanges must not contain empty values")
+        if any(not re.fullmatch(r"[a-z0-9_]+", value) for value in normalized):
+            raise ValueError("validation_exchanges must contain safe CCXT exchange identifiers")
         if len(normalized) != len(set(normalized)):
             raise ValueError("validation_exchanges must be unique")
         return normalized
@@ -68,8 +69,8 @@ class DataConfig(StrictModel):
     @classmethod
     def normalize_symbol(cls, value: str) -> str:
         normalized = value.strip()
-        if not normalized:
-            raise ValueError("symbol must not be empty")
+        if not re.fullmatch(r"[A-Za-z0-9._-]+/[A-Za-z0-9._-]+(?::[A-Za-z0-9._-]+)?", normalized):
+            raise ValueError("symbol must be a safe BASE/QUOTE market identifier")
         return normalized
 
     @field_validator("since", "until", mode="before")
@@ -77,7 +78,11 @@ class DataConfig(StrictModel):
     def ensure_timezone(cls, value: object) -> object:
         if value is None:
             return None
-        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00")) if not isinstance(value, datetime) else value
+        parsed = (
+            datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            if not isinstance(value, datetime)
+            else value
+        )
         if parsed.tzinfo is None:
             parsed = parsed.replace(tzinfo=UTC)
         return parsed.astimezone(UTC)
@@ -90,7 +95,7 @@ class DataConfig(StrictModel):
         return normalized
 
     @model_validator(mode="after")
-    def valid_range(self) -> "DataConfig":
+    def valid_range(self) -> DataConfig:
         if self.until is not None and self.until <= self.since:
             raise ValueError("data.until must be after data.since")
         if self.primary_exchange in self.validation_exchanges:
@@ -144,7 +149,7 @@ class BacktestConfig(StrictModel):
     execution_delay_bars: int = Field(default=1, ge=1)
 
     @model_validator(mode="after")
-    def threshold_order(self) -> "BacktestConfig":
+    def threshold_order(self) -> BacktestConfig:
         if self.short_threshold >= self.long_threshold:
             raise ValueError("short_threshold must be below long_threshold")
         return self
@@ -196,7 +201,7 @@ class AresConfig(StrictModel):
     scheduler: SchedulerConfig = Field(default_factory=SchedulerConfig)
 
     @model_validator(mode="after")
-    def model_horizon_consistency(self) -> "AresConfig":
+    def model_horizon_consistency(self) -> AresConfig:
         if self.validation.purge_bars is None:
             self.validation.purge_bars = self.labels.horizon_bars
         if self.validation.purge_bars < self.labels.horizon_bars:

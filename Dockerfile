@@ -13,8 +13,14 @@ COPY src ./src
 RUN python -m pip install --upgrade pip && python -m pip install .
 COPY configs ./configs
 COPY DISCLAIMER.md SECURITY.md ./
+RUN useradd --uid 1000 --create-home --shell /usr/sbin/nologin ares \
+    && mkdir -p /app/data /app/artifacts \
+    && chown -R ares:ares /app
+USER ares
 ENTRYPOINT ["ares"]
 CMD ["--help"]
 
 FROM base AS ml
+USER root
 RUN python -m pip install ".[ml]"
+USER ares

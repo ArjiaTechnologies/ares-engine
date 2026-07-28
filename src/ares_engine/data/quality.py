@@ -61,7 +61,9 @@ def validate_ohlcv(
     required = {"timestamp", "open", "high", "low", "close", "volume"}
     missing = sorted(required.difference(frame.columns))
     if missing:
-        _issue(issues, "missing_columns", f"Missing required OHLCV columns: {missing}", len(missing))
+        _issue(
+            issues, "missing_columns", f"Missing required OHLCV columns: {missing}", len(missing)
+        )
         return QualityReport(source=source, passed=False, issues=issues, stats={"rows": len(frame)})
     if frame.empty:
         _issue(issues, "empty_dataset", "No OHLCV rows were returned")
@@ -75,7 +77,9 @@ def validate_ohlcv(
 
     duplicate_count = int(work["timestamp"].duplicated().sum())
     if duplicate_count:
-        _issue(issues, "duplicate_timestamp", "Duplicate candle timestamps detected", duplicate_count)
+        _issue(
+            issues, "duplicate_timestamp", "Duplicate candle timestamps detected", duplicate_count
+        )
 
     if not work["timestamp"].is_monotonic_increasing:
         _issue(issues, "unsorted_timestamp", "Candle timestamps are not monotonically increasing")
@@ -106,11 +110,18 @@ def validate_ohlcv(
     numeric = work[["open", "high", "low", "close", "volume"]].apply(pd.to_numeric, errors="coerce")
     non_finite = int((~np.isfinite(numeric.to_numpy(dtype="float64"))).sum())
     if non_finite:
-        _issue(issues, "non_finite_value", "OHLCV contains NaN or infinite numeric values", non_finite)
+        _issue(
+            issues, "non_finite_value", "OHLCV contains NaN or infinite numeric values", non_finite
+        )
 
     non_positive_prices = int((numeric[["open", "high", "low", "close"]] <= 0).sum().sum())
     if non_positive_prices:
-        _issue(issues, "non_positive_price", "OHLC prices must be strictly positive", non_positive_prices)
+        _issue(
+            issues,
+            "non_positive_price",
+            "OHLC prices must be strictly positive",
+            non_positive_prices,
+        )
 
     negative_volume = int((numeric["volume"] < 0).sum())
     if negative_volume:
@@ -120,16 +131,22 @@ def validate_ohlcv(
     low_invalid = numeric["low"] > numeric[["open", "close", "high"]].min(axis=1)
     invariant_count = int((high_invalid | low_invalid).sum())
     if invariant_count:
-        _issue(issues, "ohlc_invariant", "High/low bounds are inconsistent with open/close", invariant_count)
+        _issue(
+            issues,
+            "ohlc_invariant",
+            "High/low bounds are inconsistent with open/close",
+            invariant_count,
+        )
 
-    expected = pd.Timedelta(seconds=timeframe_to_seconds(timeframe))
-    valid_timestamps = work["timestamp"].dropna().sort_values()
-    deltas = valid_timestamps.diff().dropna()
-    # Ceil catches a missing expected slot even when a malformed timestamp lands between grid points.
-    gap_steps = (np.ceil(deltas / expected).astype("int64") - 1).clip(lower=0)
-    gap_count = int(gap_steps.sum())
-    irregular_count = int((deltas.mod(expected) != pd.Timedelta(0)).sum())
+    expected = pd.Timedelta(timeframe_to_seconds(timeframe), unit="s")
     expected_ns = int(expected.value)
+    valid_timestamps = work["timestamp"].dropna().sort_values()
+    delta_ns = valid_timestamps.diff().dropna().astype("int64")
+    # Integer ceiling division catches a missing expected slot even when a malformed timestamp
+    # lands between grid points, without float rounding on nanosecond values.
+    gap_steps = ((delta_ns + expected_ns - 1) // expected_ns - 1).clip(lower=0)
+    gap_count = int(gap_steps.sum())
+    irregular_count = int((delta_ns.mod(expected_ns) != 0).sum())
     off_grid_count = int(((valid_timestamps.astype("int64") % expected_ns) != 0).sum())
     if gap_count > max_gap_count:
         _issue(
@@ -205,7 +222,9 @@ def validate_ohlcv(
         else:
             reference = pd.Timestamp(as_of or datetime.now(tz=UTC))
             reference = (
-                reference.tz_localize(UTC) if reference.tzinfo is None else reference.tz_convert(UTC)
+                reference.tz_localize(UTC)
+                if reference.tzinfo is None
+                else reference.tz_convert(UTC)
             )
             latest_close = valid_timestamps.max() + expected
             stale_seconds = max(0.0, (reference - latest_close).total_seconds())
@@ -254,17 +273,17 @@ def validate_cross_venue(
     missing_primary = sorted(required.difference(primary.columns))
     missing_secondary = sorted(required.difference(secondary.columns))
     if missing_primary or missing_secondary:
-        issues: list[QualityIssue] = []
+        column_issues: list[QualityIssue] = []
         if missing_primary:
             _issue(
-                issues,
+                column_issues,
                 "missing_cross_venue_columns",
                 f"{primary_name} is missing cross-venue columns: {missing_primary}",
                 len(missing_primary),
             )
         if missing_secondary:
             _issue(
-                issues,
+                column_issues,
                 "missing_cross_venue_columns",
                 f"{secondary_name} is missing cross-venue columns: {missing_secondary}",
                 len(missing_secondary),
@@ -272,7 +291,7 @@ def validate_cross_venue(
         return QualityReport(
             source=f"{primary_name}~{secondary_name}",
             passed=False,
-            issues=issues,
+            issues=column_issues,
             stats={"overlap_rows": 0},
         )
 
@@ -307,12 +326,14 @@ def validate_cross_venue(
         )
 
     midpoint = (joined["primary_close"] + joined["secondary_close"]) / 2.0
-    divergence_bps = ((joined["primary_close"] - joined["secondary_close"]).abs() / midpoint) * 10_000
+    divergence_bps = (
+        (joined["primary_close"] - joined["secondary_close"]).abs() / midpoint
+    ) * 10_000
     p50 = float(divergence_bps.quantile(0.50))
     p95 = float(divergence_bps.quantile(0.95))
     maximum = float(divergence_bps.max())
     latest_index = joined["timestamp"].idxmax()
-    latest_timestamp = pd.Timestamp(joined.loc[latest_index, "timestamp"])
+    latest_timestamp = pd.Timestamp(joined["timestamp"].loc[latest_index])
     primary_latest_timestamp = pd.Timestamp(left["timestamp"].max())
     secondary_latest_timestamp = pd.Timestamp(right["timestamp"].max())
     latest_divergence = float(divergence_bps.loc[latest_index])

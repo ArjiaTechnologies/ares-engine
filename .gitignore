@@ -17,11 +17,15 @@ htmlcov/
 data/raw/
 data/quality/
 data/paper/
+data/snapshots/
+data/rejected/
+data/CURRENT
 data/*.duckdb
 data/*.wal
 data/*.lock
 artifacts/*
 !artifacts/.gitkeep
+tmp/
 
 # Optuna / MLflow
 *.db
@@ -32,3 +36,6 @@ mlruns/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Build artifacts
+dist/

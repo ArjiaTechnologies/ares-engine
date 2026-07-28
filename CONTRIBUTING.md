@@ -1,11 +1,10 @@
 # Contributing
 
-1. Fork the repository and create a focused branch.
-2. Install Python 3.11 or 3.12 and run `uv sync --extra dev`.
-3. Run `uv run ruff check .`, `uv run pytest -m "not ml"`, and relevant ML smoke tests.
-4. Add tests for every behavior change, especially timestamp alignment, scaling, split boundaries,
-   cost accounting, bundle integrity, and promotion gates.
-5. Keep pull requests small. Trading research becomes unauditable when unrelated changes are mixed.
+1. Create a focused branch and keep unrelated changes separate.
+2. Use Python 3.11, 3.12, or 3.13 and install `uv sync --extra dev --extra ml`.
+3. Run compileall, Ruff lint and format checks, strict mypy, the complete branch-aware pytest suite, `pip-audit`, package build, and `twine check`.
+4. Test an installed wheel outside the source checkout when packaging or CLI behavior changes.
+5. Add independent or adversarial tests for timestamp alignment, leakage, scaling, fold boundaries, cost accounting, bankruptcy, storage publication, evidence validation, bundle integrity, promotion, and inference gates.
+6. Do not weaken a data, risk, integrity, or freshness gate to make a result pass.
 
-Do not submit strategies that report only headline return. Include assumptions, chronology, costs,
-drawdown, turnover, trade count, and failure cases.
+Research pull requests must state chronology, data sources, fees, slippage, drawdown, turnover, trade count, rejected candidates, and limitations. A headline return is not sufficient evidence.

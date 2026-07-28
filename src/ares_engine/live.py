@@ -8,19 +8,20 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeAlias
 
 import numpy as np
 import pandas as pd
+from filelock import FileLock, Timeout
 
 from .bundles import load_bundle
 from .data.quality import QualityReport, validate_cross_venue, validate_ohlcv
 from .exceptions import AresError, DataQualityError
 from .features import build_features
 from .models import predict_probabilities
-from .utils import sha256_file, utc_now
+from .utils import sha256_file, timeframe_to_seconds, utc_now
 
-SecondaryInput = pd.DataFrame | Mapping[str, pd.DataFrame] | None
+SecondaryInput: TypeAlias = pd.DataFrame | Mapping[str, pd.DataFrame] | None
 
 
 @dataclass(slots=True)
@@ -44,6 +45,34 @@ def _report_failures(report: QualityReport) -> list[str]:
     return [f"{report.source}: {issue.message}" for issue in report.issues]
 
 
+def _open_candle_failures(
+    frame: pd.DataFrame,
+    *,
+    source: str,
+    timeframe: str,
+    reference: datetime | pd.Timestamp,
+) -> list[str]:
+    """Reject feeds that still contain the in-progress candle at ``reference``."""
+    if "timestamp" not in frame.columns or frame.empty:
+        return []
+    step = timeframe_to_seconds(timeframe)
+    reference_ts = pd.Timestamp(reference)
+    reference_ts = (
+        reference_ts.tz_localize("UTC")
+        if reference_ts.tzinfo is None
+        else reference_ts.tz_convert("UTC")
+    )
+    current_start = pd.Timestamp((int(reference_ts.timestamp()) // step) * step, unit="s", tz="UTC")
+    stamps = pd.to_datetime(frame["timestamp"], utc=True, errors="coerce")
+    open_rows = int((stamps >= current_start).sum())
+    if open_rows:
+        return [
+            f"{source}: feed contains {open_rows} in-progress or future candle(s) at or after "
+            f"{current_start}; only completed candles are allowed for paper inference"
+        ]
+    return []
+
+
 def _normalize_secondary_frames(
     secondary_ohlcv: SecondaryInput,
     configured_exchanges: list[str],
@@ -58,7 +87,9 @@ def _normalize_secondary_frames(
             ]
         return {configured_exchanges[0]: secondary_ohlcv}, []
     frames = {str(exchange): frame for exchange, frame in secondary_ohlcv.items()}
-    invalid = [exchange for exchange, frame in frames.items() if not isinstance(frame, pd.DataFrame)]
+    invalid = [
+        exchange for exchange, frame in frames.items() if not isinstance(frame, pd.DataFrame)
+    ]
     failures = [f"secondary feed {exchange} is not a pandas DataFrame" for exchange in invalid]
     for exchange in invalid:
         frames.pop(exchange)
@@ -97,6 +128,15 @@ def generate_paper_signal(
         max_staleness_bars=config.data.max_staleness_bars,
     )
     failures.extend(_report_failures(primary_report))
+    if config.data.drop_open_candle:
+        failures.extend(
+            _open_candle_failures(
+                primary_ohlcv,
+                source=config.data.primary_exchange,
+                timeframe=config.data.timeframe,
+                reference=reference,
+            )
+        )
     staleness_bars = float(primary_report.stats.get("staleness_bars", float("inf")))
 
     secondary_frames, normalization_failures = _normalize_secondary_frames(
@@ -127,12 +167,21 @@ def generate_paper_signal(
             max_staleness_bars=config.data.max_staleness_bars,
         )
         failures.extend(_report_failures(secondary_report))
+        if config.data.drop_open_candle:
+            failures.extend(
+                _open_candle_failures(
+                    secondary,
+                    source=secondary_name,
+                    timeframe=config.data.timeframe,
+                    reference=reference,
+                )
+            )
         stale = float(secondary_report.stats.get("staleness_bars", float("inf")))
         secondary_staleness[secondary_name] = stale
 
-        if required_cross_columns.issubset(primary_ohlcv.columns) and required_cross_columns.issubset(
-            secondary.columns
-        ):
+        if required_cross_columns.issubset(
+            primary_ohlcv.columns
+        ) and required_cross_columns.issubset(secondary.columns):
             cross = validate_cross_venue(
                 primary_ohlcv,
                 secondary,
@@ -196,8 +245,12 @@ def generate_paper_signal(
         payload = result.to_dict()
         payload["recorded_at"] = utc_now().isoformat()
         payload["manifest_sha256"] = sha256_file(bundle_path / "manifest.json")
-        with log_path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(payload, default=str, sort_keys=True) + "\n")
-            handle.flush()
-            os.fsync(handle.fileno())
+        lock = FileLock(str(log_path) + ".lock", timeout=0)
+        try:
+            with lock, log_path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(payload, default=str, sort_keys=True) + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+        except Timeout as exc:
+            raise AresError("Another paper process is writing the signal log") from exc
     return result

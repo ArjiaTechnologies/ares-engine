@@ -76,7 +76,9 @@ def build_model(input_shape: tuple[int, int], config: ModelConfig, *, seed: int)
                 name=f"tcn_conv_{block}_b",
             )(x)
             if residual.shape[-1] != config.hidden_units:
-                residual = layers.Conv1D(config.hidden_units, 1, name=f"tcn_residual_{block}")(residual)
+                residual = layers.Conv1D(config.hidden_units, 1, name=f"tcn_residual_{block}")(
+                    residual
+                )
             x = layers.Add(name=f"tcn_add_{block}")([x, residual])
             x = layers.Activation("relu", name=f"tcn_relu_{block}_b")(x)
         x = layers.GlobalAveragePooling1D(name="tcn_pool")(x)
@@ -146,7 +148,14 @@ def fit_model(
 
 def predict_probabilities(model: Any, X: np.ndarray) -> np.ndarray:
     predictions = model.predict(X, verbose=0)
-    return np.asarray(predictions, dtype="float64").reshape(-1)
+    probabilities = np.asarray(predictions, dtype="float64").reshape(-1)
+    if len(probabilities) != len(X):
+        raise AresError("Model returned a prediction count that does not match its input")
+    if not np.isfinite(probabilities).all():
+        raise AresError("Model returned NaN or infinite probabilities")
+    if ((probabilities < 0.0) | (probabilities > 1.0)).any():
+        raise AresError("Model returned probabilities outside [0, 1]")
+    return probabilities
 
 
 def clear_session() -> None:

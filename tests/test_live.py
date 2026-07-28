@@ -17,7 +17,9 @@ class IdentityScaler:
         return values
 
 
-def test_paper_inference_fails_closed_before_logging(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_paper_inference_fails_closed_before_logging(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     config = load_config("configs/smoke.yaml")
     fake_bundle = SimpleNamespace(config=config, feature_spec={})
     monkeypatch.setattr("ares_engine.live.load_bundle", lambda _: fake_bundle)

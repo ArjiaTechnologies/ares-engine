@@ -72,7 +72,7 @@ def build_features(ohlcv: pd.DataFrame, config: FeatureConfig) -> FeatureFrame:
     frame[position_name] = (close - frame[low_name]) / width
     feature_columns.extend([mid_name, high_name, low_name, position_name])
 
-    frame["log_return_1"] = np.log(close).diff()
+    frame["log_return_1"] = pd.Series(np.log(close.to_numpy()), index=close.index).diff()
     feature_columns.append("log_return_1")
 
     for window in config.volatility_windows:
@@ -81,12 +81,16 @@ def build_features(ohlcv: pd.DataFrame, config: FeatureConfig) -> FeatureFrame:
         feature_columns.append(name)
 
     frame["log_volume"] = np.log1p(volume)
-    volume_mean = frame["log_volume"].rolling(
-        config.volume_z_window, min_periods=config.volume_z_window
-    ).mean()
-    volume_std = frame["log_volume"].rolling(
-        config.volume_z_window, min_periods=config.volume_z_window
-    ).std(ddof=0)
+    volume_mean = (
+        frame["log_volume"]
+        .rolling(config.volume_z_window, min_periods=config.volume_z_window)
+        .mean()
+    )
+    volume_std = (
+        frame["log_volume"]
+        .rolling(config.volume_z_window, min_periods=config.volume_z_window)
+        .std(ddof=0)
+    )
     volume_z_name = f"volume_z_{config.volume_z_window}"
     frame[volume_z_name] = (frame["log_volume"] - volume_mean) / volume_std.replace(0.0, np.nan)
     feature_columns.extend(["log_volume", volume_z_name])

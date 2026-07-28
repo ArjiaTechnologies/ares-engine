@@ -1,0 +1,62 @@
+{
+  "generated_at": "2026-07-28T00:08:11.158989+00:00",
+  "verdict": "CONDITIONAL",
+  "source_identity": {
+    "inner_archive_sha256": "0a18e017996746764325b18185f4de320898e41c84bbc91ab695b1979b52a7b0",
+    "uploaded_wrapper_sha256": "cc86e2b38cc1136421c574a32dc37c0bb45f8d6c4bfedee4d1579f01c7d47a13",
+    "git_tree": "e48e6ad8e45643ca06e6fff21cb27d5044c04a87",
+    "tracked_files": 70,
+    "baseline_commit": "b7736ac8d15207537d71fb1e8c64fa4e8dd2b844",
+    "final_commit": "a25dba4bfad05e79e7488674cf699fbd45687746",
+    "branch": "audit/fable-5-hardening",
+    "audit_commits": 17
+  },
+  "tests": {
+    "baseline": {
+      "total": 50,
+      "non_ml": 49,
+      "ml": 1,
+      "branch_coverage_percent": 76
+    },
+    "final": {
+      "total": 186,
+      "non_ml": 145,
+      "ml": 41,
+      "skipped": 0,
+      "branch_coverage_percent": 84,
+      "added_by_audit": 136
+    },
+    "matrix": {
+      "cpython-3.11.15+": {"non_ml": 145, "ml": 41, "install": "editable + wheel validated"},
+      "cpython-3.12.13+": {"non_ml": 145, "ml": 41, "install": "wheel-only"},
+      "cpython-3.13.14+": {"non_ml": 145, "ml": 41, "install": "wheel-only"}
+    },
+    "tensorflow": "2.21.0 (aarch64)"
+  },
+  "static_analysis": {
+    "ruff_check": "clean",
+    "ruff_format": "clean",
+    "mypy_strict": "clean (24 files)",
+    "baseline_mypy_errors": 31,
+    "baseline_ruff_errors": 4,
+    "baseline_unformatted_files": 19
+  },
+  "packaging": {
+    "sdist": "built",
+    "wheel": "built",
+    "twine_check": "PASSED",
+    "wheel_cli_outside_checkout": "all 14 commands + offline demo green"
+  },
+  "findings": {"high": 3, "medium": 6, "low": 3, "informational": 5, "unresolved_critical_or_high": 0},
+  "live_ingestion": {
+    "executed": false,
+    "reason": "sandbox proxy blocks Coinbase/Kraken (HTTP 403 X-Proxy-Error: blocked-by-allowlist); DNS unavailable",
+    "simulation": "exact-shape wire simulators driven through unmodified ccxt 4.5.68 clients; 32 scenario/atomicity/harness tests green",
+    "portable_command": "ares verify-public-ingestion (see FABLE_5_EXTERNAL_INGESTION_HANDOFF.md)"
+  },
+  "not_executed_in_sandbox": [
+    "live venue ingestion",
+    "docker build/run (no daemon)",
+    "GitHub Actions execution (nothing pushed)"
+  ]
+}
