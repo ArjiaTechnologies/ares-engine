@@ -170,3 +170,47 @@ def test_permission_failure_leaves_champion_intact(tmp_path: Path) -> None:
         os.chmod(tmp_path, 0o700)
     assert (tmp_path / "champion.json").read_bytes() == pointer_before
     assert resolve_champion(tmp_path) == first.resolve()
+
+
+def test_challenger_mutation_during_decision_never_updates_pointer(
+    tmp_path: Path, monkeypatch
+) -> None:
+    gates = GateConfig(min_promotion_score_improvement=0.0)
+    first = make_fake_bundle(tmp_path, "first", score=1.0)
+    promote(first, tmp_path, gates)
+    pointer_before = (tmp_path / "champion.json").read_bytes()
+    challenger = make_fake_bundle(tmp_path, "challenger-race", score=2.0)
+    real_decide = promotion_module.decide_promotion
+
+    def mutate_after_decision(challenger_path, champion_path, gate_config):
+        decision = real_decide(challenger_path, champion_path, gate_config)
+        (challenger_path / "metrics.json").write_text("mutated", encoding="utf-8")
+        return decision
+
+    monkeypatch.setattr(promotion_module, "decide_promotion", mutate_after_decision)
+    with pytest.raises(BundleIntegrityError):
+        promote(challenger, tmp_path, gates)
+    assert (tmp_path / "champion.json").read_bytes() == pointer_before
+
+
+def test_manifest_identity_change_after_reverification_is_rejected(
+    tmp_path: Path, monkeypatch
+) -> None:
+    challenger = make_fake_bundle(tmp_path, "manifest-race", score=2.0)
+    real_verify = promotion_module.verify_bundle
+    calls = 0
+
+    def mutate_manifest_on_final_verify(bundle_path):
+        nonlocal calls
+        calls += 1
+        if calls == 3:
+            manifest_path = bundle_path / "manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["race_nonce"] = "changed-after-decision"
+            promotion_module.atomic_write_json(manifest_path, manifest)
+        real_verify(bundle_path)
+
+    monkeypatch.setattr(promotion_module, "verify_bundle", mutate_manifest_on_final_verify)
+    with pytest.raises(BundleIntegrityError, match="changed during promotion"):
+        promote(challenger, tmp_path, GateConfig(min_promotion_score_improvement=0.0))
+    assert not (tmp_path / "champion.json").exists()

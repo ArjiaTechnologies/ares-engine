@@ -12,6 +12,7 @@ from typing import Any, TypeAlias
 
 import numpy as np
 import pandas as pd
+from filelock import FileLock, Timeout
 
 from .bundles import load_bundle
 from .data.quality import QualityReport, validate_cross_venue, validate_ohlcv
@@ -244,8 +245,12 @@ def generate_paper_signal(
         payload = result.to_dict()
         payload["recorded_at"] = utc_now().isoformat()
         payload["manifest_sha256"] = sha256_file(bundle_path / "manifest.json")
-        with log_path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(payload, default=str, sort_keys=True) + "\n")
-            handle.flush()
-            os.fsync(handle.fileno())
+        lock = FileLock(str(log_path) + ".lock", timeout=0)
+        try:
+            with lock, log_path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(payload, default=str, sort_keys=True) + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+        except Timeout as exc:
+            raise AresError("Another paper process is writing the signal log") from exc
     return result

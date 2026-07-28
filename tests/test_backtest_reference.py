@@ -5,6 +5,8 @@ import math
 import numpy as np
 import pandas as pd
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 from reference_impl import ref_backtest
 
 from ares_engine.backtest import probabilities_to_signal, run_backtest
@@ -74,6 +76,8 @@ def _assert_matches_reference(returns, probabilities, config, cost_multiplier=1.
             getattr(result.metrics, key), reference[key], rtol=1e-11, atol=1e-12, err_msg=key
         )
     assert result.metrics.trades == reference["trades"]
+    assert result.metrics.bankrupt is reference["bankrupt"]
+    assert result.metrics.bankruptcy_bar == reference["bankruptcy_bar"]
     return result
 
 
@@ -150,14 +154,37 @@ def test_threshold_equality_is_inclusive_on_both_sides() -> None:
     _assert_matches_reference([0.0, 0.01, -0.01, 0.0], [0.6, 0.4, 0.5, 0.5], config)
 
 
-def test_nan_probability_maps_to_flat_not_to_a_trade() -> None:
-    result = _assert_matches_reference([0.0, 0.05, 0.05, 0.0], [np.nan, 0.9, np.nan, 0.5], _cfg())
-    assert list(result.ledger["position"]) == [0.0, 0.0, 1.0, 0.0]
+def test_nan_or_infinite_probability_fails_closed() -> None:
+    for invalid in [np.nan, np.inf, -np.inf]:
+        with pytest.raises(ValueError, match="finite"):
+            _run([0.0, 0.05], [invalid, 0.9], _cfg())
 
 
-def test_nan_bar_return_is_treated_as_zero_not_poisoned() -> None:
-    result = _assert_matches_reference([0.0, np.nan, 0.01], [0.9, 0.9, 0.5], _cfg())
-    assert math.isfinite(result.metrics.final_equity)
+def test_nan_or_infinite_bar_return_fails_closed() -> None:
+    for invalid in [np.nan, np.inf, -np.inf]:
+        with pytest.raises(ValueError, match="finite"):
+            _run([0.0, invalid, 0.01], [0.9, 0.9, 0.5], _cfg())
+
+
+def test_invalid_backtest_shapes_timestamps_probabilities_and_costs_fail_closed() -> None:
+    config = _cfg()
+    with pytest.raises(ValueError, match="identical lengths"):
+        run_backtest(_ts(2), np.zeros(1), np.zeros(2), config, timeframe="1h")
+    with pytest.raises(ValueError, match="at least one"):
+        run_backtest(_ts(0), np.array([]), np.array([]), config, timeframe="1h")
+
+    unsorted = pd.DatetimeIndex([_ts(2)[1], _ts(2)[0]])
+    duplicated = pd.DatetimeIndex([_ts(1)[0], _ts(1)[0]])
+    for timestamps in [unsorted, duplicated]:
+        with pytest.raises(ValueError, match="sorted and unique"):
+            run_backtest(timestamps, np.zeros(2), np.zeros(2), config, timeframe="1h")
+
+    for probability in [-0.01, 1.01]:
+        with pytest.raises(ValueError, match=r"within \[0, 1\]"):
+            _run([0.0], [probability], config)
+    for multiplier in [-0.01, np.nan, np.inf]:
+        with pytest.raises(ValueError, match="finite and non-negative"):
+            _run([0.0], [0.5], config, cost_multiplier=multiplier)
 
 
 def test_fees_only_slippage_only_and_stress_multiplier() -> None:
@@ -193,6 +220,50 @@ def test_near_total_equity_loss_is_reported_not_hidden() -> None:
     assert result.metrics.total_return == pytest.approx(-0.999, rel=1e-9)
 
 
+def test_initial_loss_drawdown_is_measured_from_initial_capital() -> None:
+    config = _cfg(fee_bps=0, slippage_bps=0, execution_delay_bars=1)
+    result = _assert_matches_reference([-0.5, 0.0], [0.9, 0.5], config)
+    # The delayed position is flat on bar zero, so use a cost-only first executed
+    # bar to exercise the same initial-capital peak convention.
+    result = _assert_matches_reference([0.0, -0.5], [0.9, 0.5], config)
+    assert result.metrics.max_drawdown == pytest.approx(0.5)
+
+
+def test_bankruptcy_metrics_cannot_benefit_from_later_winning_bars() -> None:
+    config = _cfg(fee_bps=0, slippage_bps=0)
+    base = _run([0.0, 1.1, 0.0], [0.1, 0.9, 0.9], config)
+    extended = _run([0.0, 1.1, -0.9, -0.9, -0.9], [0.1, 0.9, 0.9, 0.9, 0.9], config)
+    assert base.metrics.bankrupt and extended.metrics.bankrupt
+    assert extended.metrics.final_equity == 0.0
+    assert extended.metrics.max_drawdown == 1.0
+    assert extended.metrics.hit_rate == 0.0
+    assert extended.metrics.sharpe <= 0.0
+
+
+@settings(max_examples=60, deadline=None)
+@given(
+    adverse_short_move=st.floats(min_value=1.000001, max_value=10.0, allow_nan=False),
+    later_returns=st.lists(
+        st.floats(min_value=-0.99, max_value=5.0, allow_nan=False, allow_infinity=False),
+        min_size=0,
+        max_size=30,
+    ),
+)
+def test_bankrupt_equity_is_terminal_for_random_future_paths(
+    adverse_short_move: float, later_returns: list[float]
+) -> None:
+    returns = [0.0, adverse_short_move, *later_returns]
+    probabilities = [0.1, *([0.9] * (len(returns) - 1))]
+    result = _run(returns, probabilities, _cfg(fee_bps=0, slippage_bps=0))
+    assert result.metrics.bankrupt
+    assert result.metrics.bankruptcy_bar == 1
+    assert result.ledger.loc[1:, "equity"].eq(0.0).all()
+    assert result.ledger.loc[1:, "net_return"].iloc[1:].eq(0.0).all()
+    assert result.metrics.total_return == -1.0
+    assert result.metrics.max_drawdown == 1.0
+    assert result.metrics.hit_rate == 0.0
+
+
 def test_sharpe_annualization_matches_manual_formula() -> None:
     returns = [0.0, 0.01, -0.005, 0.02, 0.0]
     probabilities = [0.9, 0.9, 0.9, 0.9, 0.9]
@@ -220,8 +291,6 @@ def test_randomized_agreement_with_reference_implementation() -> None:
         n = int(rng.integers(2, 120))
         returns = rng.normal(0, 0.02, size=n)
         probabilities = rng.uniform(0, 1, size=n)
-        nan_positions = rng.uniform(size=n) < 0.08
-        probabilities[nan_positions] = np.nan
         config = _cfg(
             long_threshold=float(rng.uniform(0.55, 0.8)),
             short_threshold=float(rng.uniform(0.2, 0.45)),

@@ -148,7 +148,14 @@ def fit_model(
 
 def predict_probabilities(model: Any, X: np.ndarray) -> np.ndarray:
     predictions = model.predict(X, verbose=0)
-    return np.asarray(predictions, dtype="float64").reshape(-1)
+    probabilities = np.asarray(predictions, dtype="float64").reshape(-1)
+    if len(probabilities) != len(X):
+        raise AresError("Model returned a prediction count that does not match its input")
+    if not np.isfinite(probabilities).all():
+        raise AresError("Model returned NaN or infinite probabilities")
+    if ((probabilities < 0.0) | (probabilities > 1.0)).any():
+        raise AresError("Model returned probabilities outside [0, 1]")
+    return probabilities
 
 
 def clear_session() -> None:

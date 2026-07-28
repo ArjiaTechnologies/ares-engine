@@ -26,9 +26,9 @@ def ref_backtest(
     assert len(probabilities) == n
     signals = []
     for p in probabilities:
-        if not (p == p):  # NaN
-            signals.append(0.0)
-        elif p >= long_t:
+        if not math.isfinite(p) or not 0.0 <= p <= 1.0:
+            raise ValueError("invalid probability")
+        if p >= long_t:
             signals.append(1.0)
         elif p <= short_t:
             signals.append(-1.0)
@@ -42,31 +42,43 @@ def ref_backtest(
     equity = 1.0
     prev_pos = 0.0
     equities, net_returns = [], []
+    bankrupt = False
+    bankruptcy_bar = None
     turnover = 0.0
     trades = 0
     active_bars = 0
     hits = 0
     for i in range(n):
         r = bar_returns[i]
-        if not (r == r):
-            r = 0.0
+        if not math.isfinite(r):
+            raise ValueError("invalid bar return")
         change = abs(positions[i] - prev_pos)
         if change > 0:
             trades += 1
         turnover += change
         cost = change * rate
         gross = positions[i] * r
-        net = gross - cost
-        equity *= 1.0 + net
+        raw_net = gross - cost
+        if bankrupt:
+            net = 0.0
+            equity = 0.0
+        elif raw_net <= -1.0 or equity * (1.0 + raw_net) <= 0.0:
+            net = -1.0
+            equity = 0.0
+            bankrupt = True
+            bankruptcy_bar = i
+        else:
+            net = raw_net
+            equity *= 1.0 + net
         equities.append(equity)
         net_returns.append(net)
-        if positions[i] != 0.0:
+        if positions[i] != 0.0 and bankruptcy_bar is None:
             active_bars += 1
             if gross > 0:
                 hits += 1
         prev_pos = positions[i]
     total_return = equity - 1.0
-    peak = -math.inf
+    peak = 1.0
     max_dd = 0.0
     for e in equities:
         peak = max(peak, e)
@@ -76,8 +88,19 @@ def ref_backtest(
     var = sum((x - mean) ** 2 for x in net_returns) / n if n else 0.0
     std = math.sqrt(var)
     sharpe = (mean / std * math.sqrt(periods_per_year)) if (std > 0 and math.isfinite(std)) else 0.0
+    if bankrupt:
+        sharpe = min(sharpe, 0.0)
+        active_bars = sum(position != 0.0 for position in positions[: (bankruptcy_bar or 0) + 1])
+        turnover = sum(
+            abs(positions[i] - (positions[i - 1] if i else 0.0))
+            for i in range((bankruptcy_bar or 0) + 1)
+        )
+        trades = sum(
+            abs(positions[i] - (positions[i - 1] if i else 0.0)) > 0
+            for i in range((bankruptcy_bar or 0) + 1)
+        )
     exposure = active_bars / n if n else 0.0
-    hit_rate = hits / active_bars if active_bars else 0.0
+    hit_rate = 0.0 if bankrupt else hits / active_bars if active_bars else 0.0
     return {
         "positions": positions,
         "total_return": total_return,
@@ -88,6 +111,8 @@ def ref_backtest(
         "exposure": exposure,
         "hit_rate": hit_rate,
         "sharpe": sharpe,
+        "bankrupt": bankrupt,
+        "bankruptcy_bar": bankruptcy_bar,
     }
 
 

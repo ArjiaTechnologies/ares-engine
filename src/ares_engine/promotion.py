@@ -140,11 +140,20 @@ def _promote_unlocked(
     artifacts_root: Path,
     gates: GateConfig,
 ) -> PromotionDecision:
+    manifest_path = challenger / "manifest.json"
+    verify_bundle(challenger)
+    verified_manifest_hash = sha256_file(manifest_path)
     champion = resolve_champion(artifacts_root)
     decision = decide_promotion(challenger, champion, gates)
     atomic_write_json(artifacts_root / "last_promotion_decision.json", decision.to_dict())
     if not decision.approved:
         raise PromotionRejected(decision.reason)
+
+    # Re-verify immediately before publishing the pointer. This anchors the
+    # decision to the same immutable bytes that the pointer names.
+    verify_bundle(challenger)
+    if sha256_file(manifest_path) != verified_manifest_hash:
+        raise BundleIntegrityError("Challenger changed during promotion")
 
     bundle_path = str(challenger.relative_to(artifacts_root))
     atomic_write_json(
@@ -152,7 +161,7 @@ def _promote_unlocked(
         {
             "bundle_path": bundle_path,
             "promoted_at": utc_now(),
-            "manifest_sha256": sha256_file(challenger / "manifest.json"),
+            "manifest_sha256": verified_manifest_hash,
             "decision": decision.to_dict(),
         },
     )

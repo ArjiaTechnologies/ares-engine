@@ -147,7 +147,7 @@ def test_absolute_and_traversal_manifest_names_fail_closed(real_bundle, tmp_path
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["files"][name] = {"sha256": "0" * 64, "bytes": 1}
     atomic_write_json(manifest_path, manifest)
-    with pytest.raises(BundleIntegrityError, match="Invalid manifest file name|missing"):
+    with pytest.raises(BundleIntegrityError, match="Invalid manifest file name|missing|not exact"):
         load_bundle(bundle)
 
 
@@ -171,11 +171,7 @@ def test_symlinked_bundle_root_fails_closed(real_bundle, tmp_path) -> None:
         load_bundle(link)
 
 
-def test_hardlink_post_verification_modification_is_caught_on_next_load(
-    real_bundle, tmp_path
-) -> None:
-    """A hard link passes hashing while contents match, but any later edit through
-    the second path changes the canonical bytes and must fail the next load."""
+def test_hardlinked_payload_is_rejected_before_deserialization(real_bundle, tmp_path) -> None:
     bundle = _clone(real_bundle, tmp_path, "hardlinked")
     attacker_path = tmp_path / "attacker-metrics.json"
     metrics = bundle / "metrics.json"
@@ -184,9 +180,56 @@ def test_hardlink_post_verification_modification_is_caught_on_next_load(
     attacker_path.write_bytes(original)
     os.link(attacker_path, metrics)
     _rehash_manifest(bundle)
-    verify_bundle(bundle)  # identical content still verifies
-    attacker_path.write_bytes(original.replace(b"passed", b"PASSED"))
-    with pytest.raises(BundleIntegrityError, match="mismatch|changed"):
+    with pytest.raises(BundleIntegrityError, match="hard-linked"):
+        load_bundle(bundle)
+
+
+def test_oversized_payload_is_rejected_before_read(real_bundle, tmp_path, monkeypatch) -> None:
+    bundle = _clone(real_bundle, tmp_path, "oversized")
+    monkeypatch.setitem(bundles_module.BUNDLE_FILE_LIMITS, "metrics.json", 1)
+    with pytest.raises(BundleIntegrityError, match="allowed size"):
+        load_bundle(bundle)
+
+
+def test_non_finite_json_is_rejected_even_when_rehashed(real_bundle, tmp_path) -> None:
+    bundle = _clone(real_bundle, tmp_path, "non-finite-json")
+    metrics_path = bundle / "metrics.json"
+    metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
+    metrics["nested_attack"] = [float("nan")]
+    metrics_path.write_text(json.dumps(metrics), encoding="utf-8")
+    _rehash_manifest(bundle)
+    with pytest.raises(BundleIntegrityError, match="non-finite"):
+        load_bundle(bundle)
+
+
+def test_scaler_shape_mismatch_is_rejected(real_bundle, tmp_path) -> None:
+    bundle = _clone(real_bundle, tmp_path, "scaler-shape")
+    spec_path = bundle / "feature_spec.json"
+    spec = json.loads(spec_path.read_text(encoding="utf-8"))
+    spec["columns"].append("untrained_feature")
+    atomic_write_json(spec_path, spec)
+    _rehash_manifest(bundle)
+    with pytest.raises(BundleIntegrityError, match="scaler feature count"):
+        load_bundle(bundle)
+
+
+def test_model_input_shape_mismatch_is_rejected(real_bundle, tmp_path) -> None:
+    from ares_engine.models import keras_api
+
+    bundle = _clone(real_bundle, tmp_path, "model-shape")
+    config = real_bundle["config"]
+    feature_count = len(json.loads((bundle / "feature_spec.json").read_text())["columns"])
+    keras = keras_api()
+    wrong_model = keras.Sequential(
+        [
+            keras.layers.Input((config.model.lookback_bars + 1, feature_count)),
+            keras.layers.Flatten(),
+            keras.layers.Dense(1, activation="sigmoid"),
+        ]
+    )
+    wrong_model.save(bundle / "model.keras")
+    _rehash_manifest(bundle)
+    with pytest.raises(BundleIntegrityError, match="model input shape"):
         load_bundle(bundle)
 
 

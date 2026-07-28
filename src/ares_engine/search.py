@@ -12,8 +12,27 @@ import optuna
 import pandas as pd
 
 from .config import AresConfig, dump_config
+from .exceptions import AresError
 from .utils import atomic_write_json
 from .validation import run_walk_forward
+
+STUDY_IDENTITY_SCHEMA = "ares-study-identity-v2"
+SEARCH_SPACE = {
+    "label_method": ["k_ahead", "triple_barrier"],
+    "horizon_bars": [3, 6, 12, 24],
+    "dead_zone_bps": {"low": 5.0, "high": 40.0, "step": 5.0},
+    "take_profit_bps": {"low": 30.0, "high": 120.0, "step": 10.0},
+    "stop_loss_bps": {"low": 20.0, "high": 100.0, "step": 10.0},
+    "model_family": ["lstm", "tcn"],
+    "lookback_bars": [24, 36, 48, 72, 96, 144],
+    "hidden_units": [16, 32, 64, 96, 128],
+    "dropout": {"low": 0.0, "high": 0.5, "step": 0.1},
+    "learning_rate": {"low": 1e-4, "high": 3e-3, "log": True},
+    "tcn_blocks": {"low": 2, "high": 4},
+    "tcn_kernel_size": [2, 3, 5],
+    "long_threshold": {"low": 0.52, "high": 0.70, "step": 0.02},
+    "short_threshold": {"low": 0.30, "high": 0.48, "step": 0.02},
+}
 
 
 def _trial_config(base: AresConfig, trial: optuna.trial.BaseTrial) -> AresConfig:
@@ -51,25 +70,67 @@ def _trial_config(base: AresConfig, trial: optuna.trial.BaseTrial) -> AresConfig
 
 
 def _data_fingerprint(ohlcv: pd.DataFrame, base_config: AresConfig) -> str:
-    """Stable identity of the dataset a study's trials were evaluated against."""
-    stamps = pd.to_datetime(ohlcv["timestamp"], utc=True) if "timestamp" in ohlcv.columns else None
-    closes = (
-        hashlib.sha256(
-            pd.util.hash_pandas_object(ohlcv["close"], index=False).to_numpy().tobytes()
-        ).hexdigest()
-        if "close" in ohlcv.columns
-        else None
+    """Canonical identity for every input that can materially alter a study."""
+    required = ["timestamp", "open", "high", "low", "close", "volume"]
+    missing = set(required).difference(ohlcv.columns)
+    if missing:
+        raise ValueError(f"Cannot identify study; OHLCV columns are missing: {sorted(missing)}")
+
+    canonical = ohlcv.copy()
+    canonical["timestamp"] = pd.to_datetime(canonical["timestamp"], utc=True, errors="raise")
+    value_columns = [*required, *sorted(set(canonical.columns).difference(required))]
+    records: list[list[str | int | None]] = []
+    for row in canonical[value_columns].itertuples(index=False, name=None):
+        record: list[str | int | None] = []
+        for column, value in zip(value_columns, row, strict=True):
+            if column == "timestamp":
+                record.append(int(pd.Timestamp(value).value))
+            elif column in {"open", "high", "low", "close", "volume"}:
+                numeric = float(value)
+                if not math.isfinite(numeric):
+                    raise ValueError(f"Cannot identify study with non-finite {column}")
+                record.append(numeric.hex())
+            elif pd.isna(value):
+                record.append(None)
+            else:
+                record.append(str(value))
+        records.append(record)
+    records.sort(key=lambda item: json.dumps(item, separators=(",", ":"), ensure_ascii=True))
+    content = json.dumps(
+        {"columns": value_columns, "records": records},
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
     )
-    payload = json.dumps(
-        {
-            "rows": int(len(ohlcv)),
-            "start": str(stamps.min()) if stamps is not None and len(stamps) else None,
-            "end": str(stamps.max()) if stamps is not None and len(stamps) else None,
-            "close_hash": closes,
+    content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+    config_identity = {
+        "project_seed": base_config.project.seed,
+        "data": {
+            "primary_exchange": base_config.data.primary_exchange,
+            "validation_exchanges": base_config.data.validation_exchanges,
             "symbol": base_config.data.symbol,
             "timeframe": base_config.data.timeframe,
         },
+        "features": base_config.features.model_dump(mode="json"),
+        "labels": base_config.labels.model_dump(mode="json"),
+        "sequences_and_models": base_config.model.model_dump(mode="json"),
+        "folds_and_scaling": base_config.validation.model_dump(mode="json"),
+        "backtest": base_config.backtest.model_dump(mode="json"),
+        "gates": base_config.gates.model_dump(mode="json"),
+        "search_space": SEARCH_SPACE,
+    }
+    payload = json.dumps(
+        {
+            "schema": STUDY_IDENTITY_SCHEMA,
+            "full_normalized_ohlcv_sha256": content_hash,
+            "configuration": config_identity,
+        },
         sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
     )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -88,7 +149,7 @@ def run_search(
         config = _trial_config(base_config, trial)
         try:
             summary = run_walk_forward(ohlcv, config, verbose=verbose)
-        except (ValueError, RuntimeError) as exc:
+        except (AresError, ValueError, RuntimeError) as exc:
             trial.set_user_attr("failure", str(exc))
             trial.set_user_attr("passed", False)
             return -2_000_000.0

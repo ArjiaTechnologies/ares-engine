@@ -37,6 +37,18 @@ def make_fake_bundle(root: Path, name: str, *, score: float, passed: bool = True
     return bundle
 
 
+def rewrite_bundle_payload(bundle: Path, filename: str, payload) -> None:
+    """Replace one JSON payload and reseal its exact manifest entry."""
+    atomic_write_json(bundle / filename, payload)
+    manifest_path = bundle / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["files"][filename] = {
+        "sha256": sha256_file(bundle / filename),
+        "bytes": (bundle / filename).stat().st_size,
+    }
+    atomic_write_json(manifest_path, manifest)
+
+
 def test_bundle_tampering_is_detected(tmp_path: Path) -> None:
     bundle = make_fake_bundle(tmp_path, "candidate", score=1.0)
     verify_bundle(bundle)
@@ -81,6 +93,15 @@ def test_malformed_manifest_record_is_rejected(tmp_path: Path) -> None:
     manifest["files"]["metrics.json"] = "not a record"
     atomic_write_json(manifest_path, manifest)
     with pytest.raises(BundleIntegrityError, match="Invalid manifest record"):
+        verify_bundle(bundle)
+
+
+def test_duplicate_manifest_json_key_is_rejected(tmp_path: Path) -> None:
+    bundle = make_fake_bundle(tmp_path, "candidate-duplicate-key", score=1.0)
+    manifest_path = bundle / "manifest.json"
+    original = manifest_path.read_text(encoding="utf-8").strip()
+    manifest_path.write_text(original[:-1] + ', "format_version": 1}', encoding="utf-8")
+    with pytest.raises(BundleIntegrityError, match="valid UTF-8 JSON"):
         verify_bundle(bundle)
 
 
@@ -154,3 +175,48 @@ def test_promotion_lock_fails_closed(tmp_path: Path) -> None:
     with FileLock(tmp_path / ".ares-promotion.lock"):
         with pytest.raises(PromotionRejected, match="already running"):
             promote(bundle, tmp_path, GateConfig(min_promotion_score_improvement=0.0))
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ([], "JSON object"),
+        ({"score": 1.0, "passed": "yes"}, "must be boolean"),
+        ({"score": True, "passed": True}, "must be numeric"),
+    ],
+)
+def test_malformed_metrics_types_fail_closed(tmp_path: Path, payload, message: str) -> None:
+    bundle = make_fake_bundle(tmp_path, "malformed-metrics", score=1.0)
+    rewrite_bundle_payload(bundle, "metrics.json", payload)
+    with pytest.raises(BundleIntegrityError, match=message):
+        promote(bundle, tmp_path, GateConfig(min_promotion_score_improvement=0.0))
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ([], "JSON object"),
+        ({"bundle_path": ""}, "invalid bundle path"),
+        ({"bundle_path": "candidate"}, "missing its manifest hash"),
+    ],
+)
+def test_malformed_champion_pointer_fields_fail_closed(
+    tmp_path: Path, payload, message: str
+) -> None:
+    make_fake_bundle(tmp_path, "candidate", score=1.0)
+    atomic_write_json(tmp_path / "champion.json", payload)
+    with pytest.raises(BundleIntegrityError, match=message):
+        resolve_champion(tmp_path)
+
+
+def test_incumbent_that_no_longer_passes_gates_blocks_promotion(tmp_path: Path) -> None:
+    gates = GateConfig(min_promotion_score_improvement=0.0)
+    incumbent = make_fake_bundle(tmp_path, "incumbent", score=1.0)
+    promote(incumbent, tmp_path, gates)
+    rewrite_bundle_payload(incumbent, "metrics.json", {"score": 1.0, "passed": False})
+    pointer = json.loads((tmp_path / "champion.json").read_text(encoding="utf-8"))
+    pointer["manifest_sha256"] = sha256_file(incumbent / "manifest.json")
+    atomic_write_json(tmp_path / "champion.json", pointer)
+    challenger = make_fake_bundle(tmp_path, "challenger", score=2.0)
+    with pytest.raises(BundleIntegrityError, match="no longer show passed"):
+        promote(challenger, tmp_path, gates)

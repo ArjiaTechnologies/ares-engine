@@ -120,6 +120,7 @@ def _aggregate(folds: list[FoldMetrics]) -> dict[str, float | int | bool]:
         [fold.stress_backtest.total_return for fold in folds], dtype="float64"
     )
     aucs = np.asarray([fold.auc for fold in folds if fold.auc is not None], dtype="float64")
+    bankrupt_folds = sum(fold.backtest.bankrupt or fold.stress_backtest.bankrupt for fold in folds)
     return {
         "fold_count": len(folds),
         "median_sharpe": float(np.median(sharpe)),
@@ -133,6 +134,7 @@ def _aggregate(folds: list[FoldMetrics]) -> dict[str, float | int | bool]:
         "mean_auc": float(np.mean(aucs)) if len(aucs) else 0.5,
         "median_stress_return": float(np.median(stress_returns)),
         "all_stress_positive": bool(np.all(stress_returns > 0.0)),
+        "bankrupt_folds": bankrupt_folds,
     }
 
 
@@ -154,6 +156,7 @@ def evaluate_gates(aggregate: dict[str, float | int | bool], config: AresConfig)
         "drawdown": float(aggregate["worst_drawdown"]) <= config.gates.max_worst_drawdown,
         "turnover": float(aggregate["median_turnover"]) <= config.gates.max_median_turnover,
         "trade_count": int(aggregate["total_trades"]) >= config.gates.min_total_trades,
+        "solvency": int(aggregate["bankrupt_folds"]) == 0,
     }
     if config.gates.require_positive_cost_stress:
         gates["cost_stress"] = bool(aggregate["all_stress_positive"])
