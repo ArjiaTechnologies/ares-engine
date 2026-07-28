@@ -165,7 +165,7 @@ All listed Critical/High findings are resolved. Line references identify the cor
 | Impact | Readers could over-trust incomplete software assurance. |
 | Fix | Archive warning, authoritative Sol evidence, corrected architecture/data layout/release status, no performance language. |
 | Regression test | Tracked-document review and claim searches. |
-| Fix commit | Documentation commit containing the Sol audit; exact hash recorded in the final command log. |
+| Fix commit | `1cd3fed` |
 
 ## SOL-012 — obsolete journal helpers remained after architecture replacement
 
@@ -181,3 +181,33 @@ All listed Critical/High findings are resolved. Line references identify the cor
 | Fix | Removed only after repository-wide reference proof. |
 | Regression test | Full suite, import/compile checks, and repository reference search. |
 | Fix commit | `00fe9cc` |
+
+## SOL-013 — clean dependency resolution selected vulnerable PyArrow
+
+| Field | Detail |
+|---|---|
+| Severity | Medium |
+| File and line | `pyproject.toml:32` |
+| Reproduction | Ran `uv sync --extra dev` and `pip-audit` in a fresh GitHub Python 3.11 job rather than the pre-existing local environment. |
+| Observed | The permitted range resolved PyArrow 21.0.0; `pip-audit` reported `PYSEC-2026-113` / CVE-2026-25087. The local environment already had safe 23.0.1 and therefore masked the lower resolution. |
+| Expected | Every supported clean resolution excludes known vulnerable versions. |
+| Root cause | `pyarrow>=17,<24` allowed a resolver-compatible affected release. |
+| Impact | The affected Arrow C++ IPC reader has a use-after-free path; ARES uses Parquet rather than that IPC API, but shipping a known vulnerable transitive binary is unacceptable. |
+| Fix | Raised the minimum to patched PyArrow 23.0.1 and reran clean dependency, Python, packaging, ML, and Docker jobs. |
+| Regression test | Private dependency-audit jobs `90374056754` and `90375288275`; both pass after the pin. |
+| Fix commit | `bf92447` |
+
+## SOL-014 — private GitHub security jobs assumed unavailable licensed features
+
+| Field | Detail |
+|---|---|
+| Severity | Informational |
+| File and line | `.github/workflows/codeql.yml:1`, `.github/workflows/dependency-review.yml:1` |
+| Reproduction | Executed both workflows on the private repository. GitHub reported Dependency Review unsupported and rejected CodeQL because Code Security was not enabled. |
+| Observed | Unconditional workflows were red even though no source finding had occurred. |
+| Expected | Run licensed analysis where supported and state unsupported private capability precisely elsewhere. |
+| Root cause | Workflow design did not query repository visibility/security capability. |
+| Impact | False required-check failures and misleading security evidence. |
+| Fix | Capability-gated pinned workflows with explicit unsupported-private status jobs; CodeQL upgraded to pinned v4.36.0. |
+| Regression test | Green workflows `30388958215` and `30388958147`; job details confirm the exact conditional path. |
+| Fix commit | `ad19c4a`, `8b52bb3` |

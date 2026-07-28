@@ -32,7 +32,7 @@ See [DISCLAIMER.md](DISCLAIMER.md), [SECURITY.md](SECURITY.md), and [docs/resear
 - Delayed long/flat/short backtesting with fees, slippage, doubled-cost stress, drawdown, turnover, exposure, hit rate, trade counts, and bankruptcy reporting.
 - Immutable seven-file bundles, hostile-file checks, runtime shape validation, manifest-anchored promotion, and fail-closed paper inference.
 - Process locks for ingestion, scheduler cycles, promotion, and paper-signal logs.
-- Python 3.11–3.13 CI, ML/package/Docker jobs, CodeQL, dependency review where supported, and a manual-only public-ingestion workflow. Release automation is intentionally disabled.
+- Python 3.11–3.13 CI, ML/package/Docker jobs, CodeQL when private GitHub Code Security is available, dependency review where supported, and a manual-only public-ingestion workflow. Release automation is intentionally disabled.
 
 The detailed component map is in [docs/architecture.md](docs/architecture.md) and [docs/dossier_mapping.md](docs/dossier_mapping.md).
 

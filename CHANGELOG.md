@@ -15,6 +15,7 @@ All notable changes to ARES Engine are documented here.
 - Executed credential-free live Coinbase/Kraken ETH/USD 1h ingestion twice over 360 closed candles per venue; independent evidence validation passed.
 - Built and ran the Linux ARM64 ML container as non-root with Python 3.11.15 and TensorFlow 2.21.0, including the complete offline lifecycle and graceful shutdown.
 - Added Python 3.11–3.13, ML, package, installed-wheel, dependency-audit, Docker, CodeQL, dependency-review, and manual-only public-ingestion workflows with least-privilege permissions and pinned actions.
+- Raised the PyArrow minimum to patched 23.0.1 after clean CI exposed `PYSEC-2026-113` in the previously permitted 21.0.0 resolution.
 - Disabled release automation until a separate authorized public-release task.
 - Archived the Fable 5 review as superseded, untrusted historical material and made the Sol audit authoritative.
 

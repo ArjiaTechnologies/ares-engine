@@ -1,15 +1,15 @@
 {
   "schema": "ares-sol-audit-v1",
-  "generated_at": "2026-07-28T18:30:00Z",
+  "generated_at": "2026-07-28T18:50:00Z",
   "verdict": "CONDITIONAL",
-  "conditional_reason": "Private GitHub Actions and PR merge pending",
+  "conditional_reason": "CodeQL and Dependency Review require unavailable private GitHub Code Security/GHAS",
   "source_identity": {
     "original_tree": "e48e6ad8e45643ca06e6fff21cb27d5044c04a87",
     "original_inner_archive_sha256": "0a18e017996746764325b18185f4de320898e41c84bbc91ab695b1979b52a7b0",
     "fable_baseline_commit": "b7736ac8d15207537d71fb1e8c64fa4e8dd2b844",
     "fable_final_commit": "a25dba4bfad05e79e7488674cf699fbd45687746",
     "fable_final_tree": "cd2790ceffc0b77a4838a40b60b2caf44ea467cb",
-    "sol_commits": ["00fe9cc", "8dbac5d", "34472f5"]
+    "sol_commits": ["00fe9cc", "8dbac5d", "34472f5", "1cd3fed", "da0df74", "ad19c4a", "bf92447", "8b52bb3"]
   },
   "local": {
     "python": "3.12.13",
@@ -60,7 +60,17 @@
     "offline_lifecycle": "PASS",
     "graceful_shutdown_exit_code": 0
   },
-  "github_actions": {"status": "PENDING"},
+  "github_actions": {
+    "status": "PASS_SUPPORTED_CHECKS",
+    "ci_run": 30388958288,
+    "python_non_ml_per_version": 195,
+    "ml_tests": 50,
+    "jobs_passed": 7,
+    "dependency_review_workflow": 30388958215,
+    "dependency_review": "SKIPPED_UNSUPPORTED_PRIVATE_GHAS",
+    "codeql_workflow": 30388958147,
+    "codeql": "SKIPPED_UNSUPPORTED_PRIVATE_CODE_SECURITY"
+  },
   "unresolved_critical": 0,
   "unresolved_high": 0
 }

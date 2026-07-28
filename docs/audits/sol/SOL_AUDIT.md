@@ -2,7 +2,7 @@
 
 ## Verdict
 
-**CONDITIONAL** — all local, quantitative, live-ingestion, packaging, and Docker requirements pass. The first private GitHub Actions run and private PR merge are still pending at the time of this draft. This verdict must become `PASS` only after those checks are green and the repository remains private.
+**CONDITIONAL** — all local, quantitative, live-ingestion, packaging, Docker, and supported private GitHub Actions requirements pass. GitHub CodeQL and Dependency Review cannot execute their licensed analysis on this private repository because GitHub Code Security is not enabled; their workflows are pinned and activate automatically if that capability becomes available. This is a non-critical external limitation. There are no unresolved Critical or High source defects.
 
 Audit date: 2026-07-28
 
@@ -22,6 +22,10 @@ Evidence authority: independently reproduced execution, references, source/artif
 | Sol data/evidence repair | `00fe9cc` |
 | Sol research/inference repair | `8dbac5d` |
 | Sol CI repair | `34472f5` |
+| Sol documentation/archive | `1cd3fed` |
+| Sol duplicate-run repair | `da0df74` |
+| Sol private-GHAS workflow repair | `ad19c4a`, `8b52bb3` |
+| Sol patched PyArrow floor | `bf92447` |
 
 Every supplied Fable checksum matched. `git bundle verify`, `git fsck --full`, history inspection, the complete baseline-to-Fable diff, and both reconstructed source archives were independently checked. The supplied correction-prompt filename was not present; the complete attached request was available and used. The dossier rendered as six pages and was used only as architectural reference.
 
@@ -47,11 +51,11 @@ Searches and adversarial tests covered leakage, silent exceptions, bounded retry
 - Local CPython 3.12.13: 245 tests passed, 0 skipped, 32 dependency warnings, 90% total branch-aware coverage.
 - Critical modules: backtest 100%, storage 97%, public evidence 97%, promotion 100%, paper inference 98% branch-aware coverage.
 - Compileall, Ruff lint, Ruff format, and strict mypy over 24 source files: clean.
-- Dependency audit: no known vulnerabilities; the local package itself is correctly skipped because it is not published to PyPI.
+- Dependency audit: no known vulnerabilities after clean CI exposed and the audit pinned out vulnerable PyArrow 21.0.0; the local package itself is correctly skipped because it is not published to PyPI.
 - Source distribution and wheel built; `twine check` passed; every CLI help path, version, doctor, and demo passed from an installed wheel outside the checkout.
 - Live public endpoints: Coinbase and Kraken ETH/USD 1h, 360 closed candles per venue, six actual pages per venue, two isolated identical runs, strict validator `valid: true`.
 - Docker: real Linux ARM64 ML image build/run passed as UID 1000; Python 3.11.15 and TensorFlow 2.21.0; offline lifecycle and graceful `SIGTERM` exit passed.
-- GitHub Actions: pending in this draft.
+- GitHub Actions: CI run `30388958288` passed all seven jobs; Dependency Review workflow `30388958215` passed with an explicit unsupported-private skip; CodeQL workflow `30388958147` passed with an explicit unsupported-private skip. The pinned CodeQL v4 analysis job remains ready for GitHub Code Security.
 
 ## Quantitative conclusions
 
