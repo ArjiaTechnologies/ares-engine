@@ -1,29 +1,54 @@
 {
   "schema_version": 1,
   "version": "0.1.0",
-  "verdict": "CONDITIONAL",
+  "verdict": "PASS",
   "repository": "ArjiaTechnologies/ares-engine",
   "repository_id": "R_kgDOTmei-A",
+  "old_repository_id": "R_kgDOTlVbxQ",
   "public_visibility_timestamp": "2026-07-28T20:52:58Z",
   "clean_main_commit": "3de1360cbe95d004c04a05345a89ba3eab29f240",
   "release_preparation_commit": "870f09555e6a01d1914f76c57893b9151509053c",
   "public_analysis_commit": "361cdc56767c007f1d18b6505b2bae8516bd3712",
-  "release_commit": null,
+  "release_commit": "35475b63accd64fe484f04a5f1cec4dc14090186",
+  "release_tree": "40ed026ffc0032518a10765051a1790efd17b9f7",
+  "tag": "v0.1.0",
+  "tag_object": "c0b9612258b1cfe8c8ac30c0beea298982b3a614",
   "release_pr": 1,
   "private_ci_run_id": 30397558077,
-  "public_ci_run_id": 30398479089,
-  "codeql_run_id": 30398479199,
-  "codeql_analysis_id": 1540257885,
-  "dependency_review_run_id": 30398479138,
+  "final_pr_ci_run_id": 30399030376,
+  "final_pr_codeql_run_id": 30399029899,
+  "final_pr_codeql_analysis_id": 1540290727,
+  "dependency_review_run_id": 30399030808,
+  "post_merge_ci_run_id": 30399219862,
+  "post_merge_codeql_run_id": 30399219968,
+  "post_merge_codeql_analysis_id": 1540303603,
+  "release_workflow_run_id": 30399424098,
   "tests": {
-    "local_passed": 245,
-    "coverage_percent": 90,
-    "python": ["3.11", "3.12", "3.13"],
+    "local_complete_passed": 245,
+    "local_complete_branch_coverage_percent": 90,
+    "public_non_ml_passed_per_python": 195,
+    "public_non_ml_deselected_per_python": 50,
+    "public_non_ml_branch_coverage_percent": 82,
+    "python": [
+      "3.11",
+      "3.12",
+      "3.13"
+    ],
+    "ml_passed": 50,
+    "ml_deselected": 195,
     "ml_smoke": "passed-public",
     "docker": "passed-public",
-    "dependency_audit": "passed-public",
+    "dependency_audit": "passed-public-no-known-vulnerabilities",
     "package_and_installed_wheel": "passed-public",
-    "anonymous_clone": "pending"
+    "anonymous_clone": {
+      "status": "passed",
+      "python": "3.12.13",
+      "commit": "35475b63accd64fe484f04a5f1cec4dc14090186",
+      "non_ml_passed": 195,
+      "non_ml_deselected": 50,
+      "doctor": "passed",
+      "demo_500_bars": "passed"
+    }
   },
   "security": {
     "gitleaks_version": "8.30.1",
@@ -36,21 +61,43 @@
     "code_scanning_alerts": 0,
     "dependabot_alerts": 0,
     "secret_scanning_alerts": 0,
-    "dependency_graph_packages": 38,
+    "dependency_graph_packages_at_enablement": 38,
     "branch_protection": "enabled",
     "unresolved_critical": 0,
-    "unresolved_high": 0
+    "unresolved_high": 0,
+    "offending_commit_api_status": 422,
+    "offending_commit_anonymous_status": 404
   },
   "artifacts": {
-    "release_assets": [],
-    "sbom": null
+    "release_url": "https://github.com/ArjiaTechnologies/ares-engine/releases/tag/v0.1.0",
+    "release_assets": [
+      {
+        "name": "ares_eth_engine-0.1.0-py3-none-any.whl",
+        "sha256": "0baff3ef3260003ef6560d32ddc95908424f3ed25e41a4b8b001fba3b82f3398"
+      },
+      {
+        "name": "ares_eth_engine-0.1.0.tar.gz",
+        "sha256": "0ac9059fcf9a886fb4f6e9b22f63761a5a180f842e3d9fdf563bf55f13325ca1"
+      },
+      {
+        "name": "SHA256SUMS.txt",
+        "sha256": "1265394974c330ff88c717539dbfb51324fca6ed7d2df621a64342cc7d7001a1"
+      }
+    ],
+    "sbom": {
+      "name": "ares-engine-v0.1.0.cdx.json",
+      "format": "CycloneDX",
+      "spec_version": "1.6",
+      "components": 61,
+      "sha256": "20f4433b1256aaafb486e3680249a75f0d6dc10ca8850db6d44f6c65b51dca04"
+    }
   },
-  "remaining_gates": [
-    "merge",
-    "post_merge_ci",
-    "tag_build",
-    "github_release",
-    "release_artifact_verification",
-    "anonymous_clone"
-  ]
+  "publication": {
+    "github_release": "published",
+    "pypi": "not-published-http-404",
+    "live_order_path_added": false,
+    "credentials_published": false,
+    "generated_market_or_model_artifacts_published": false
+  },
+  "remaining_gates": []
 }
