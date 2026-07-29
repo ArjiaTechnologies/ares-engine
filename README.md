@@ -10,9 +10,17 @@ The Python distribution is `ares-eth-engine`; the import package is `ares_engine
 
 ARES is an ML trading research and paper-inference engine with a deliberately absent live-order path.
 
-[![ARES architecture from public market data through atomic storage, research validation, verified promotion, and fail-closed paper inference; no live-order path.](docs/assets/ares-architecture.svg)](docs/assets/ares-v0.1.0-demo.mp4)
+### Compact authentic-command demo
 
-**[Watch the short authentic-command demo](docs/assets/ares-v0.1.0-demo.mp4)**, [read the launch story](docs/launch/ARES_V0.1.0_LAUNCH_POST.md), then clone the repository, run the verifier, and [open a sanitized failure report](https://github.com/ArjiaTechnologies/ares-engine/issues/new?template=public-ingestion-report.yml) if you find an edge case.
+![Inline ARES terminal demo made from authentic command output: environment checks pass, the offline lifecycle verifies and promotes a bundle, public Coinbase and Kraken ingestion passes its quality gates without credentials, and paper inference remains read-only with no live-order path.](docs/assets/ares-v0.1.0-demo.gif)
+
+This compact inline sequence condenses the authentic 63-second demonstration into six readable scenes. Training and network idle time are omitted; the displayed output comes from the recorded ARES runs described in [the demo capture notes](docs/launch/demo/README.md).
+
+### Architecture
+
+![ARES architecture from public market data through atomic storage, research validation, verified promotion, and fail-closed paper inference; no live-order path.](docs/assets/ares-architecture.svg)
+
+**Clone ARES, run the verifier, and try to break the public-data pipeline.** Read the [launch story](docs/launch/ARES_V0.1.0_LAUNCH_POST.md), then [open a sanitized failure report](https://github.com/ArjiaTechnologies/ares-engine/issues/new?template=public-ingestion-report.yml) if you find an edge case.
 
 ## Safety boundary
 

@@ -2,6 +2,8 @@
 
 The public demo is assembled from real ARES CLI JSON, not invented terminal output. Captions select fields from the complete outputs so they remain readable at video speed. Training and network idle time are condensed.
 
+The README's inline GIF is a six-frame, 14.4-second condensation of the same rendered MP4. It samples one frame from each scene, keeps every displayed value tied to the authentic captures below, and avoids sending README visitors to a raw-video download.
+
 ## Capture commands
 
 Run from a clean checkout after `uv sync --extra dev --extra ml`:
