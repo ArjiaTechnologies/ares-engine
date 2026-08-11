@@ -25,7 +25,7 @@ jobs:
       - uses: github/codeql-action/init@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4
         with:
           languages: python
-      - uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4
+      - uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
   unsupported-private-repository:
     if: github.event.repository.visibility != 'public' && github.event.repository.security_and_analysis.advanced_security.status != 'enabled'
     runs-on: ubuntu-latest
