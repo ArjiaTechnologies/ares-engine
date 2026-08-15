@@ -1,0 +1,135 @@
+name: Dependency lock candidate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-lock-candidate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  candidate:
+    name: Regenerate and validate candidate lock
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          python-version: "3.11"
+          enable-cache: true
+
+      - name: Widen only the reviewed Twine bound
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("pyproject.toml")
+          text = path.read_text(encoding="utf-8")
+          old = '  "twine>=6,<7",'
+          new = '  "twine>=6,<8",'
+          if text.count(old) != 1:
+              raise SystemExit("expected exactly one reviewed twine>=6,<7 constraint")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
+
+      - name: Regenerate only targeted lock packages
+        run: uv lock --upgrade-package cryptography --upgrade-package twine
+
+      - name: Verify resolved target versions
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          import tomllib
+
+          data = tomllib.loads(Path("uv.lock").read_text(encoding="utf-8"))
+          found = {}
+          for package in data.get("package", []):
+              name = package.get("name")
+              if name in {"cryptography", "twine"}:
+                  found.setdefault(name, []).append(package.get("version", ""))
+
+          if not found.get("cryptography") or not found.get("twine"):
+              raise SystemExit(f"missing target package in uv.lock: {found}")
+
+          def numeric(version: str) -> tuple[int, ...]:
+              parts = re.findall(r"\d+", version)
+              return tuple(int(part) for part in parts[:3])
+
+          if max(numeric(version) for version in found["cryptography"]) < (50, 0, 0):
+              raise SystemExit(
+                  "candidate lock did not resolve cryptography to the audit fixed floor >=50.0.0: "
+                  + ", ".join(found["cryptography"])
+              )
+
+          print("cryptography=" + ",".join(found["cryptography"]))
+          print("twine=" + ",".join(found["twine"]))
+          PY
+
+      - name: Sync candidate environment
+        run: uv sync --frozen --extra dev
+
+      - name: Audit candidate dependencies
+        run: uv run pip-audit
+
+      - name: Run focused non-ML quality checks
+        run: |
+          uv run python -m compileall -q src tests
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run mypy --strict src
+          uv run pytest -m "not ml"
+
+      - name: Build and validate distributions
+        run: |
+          uv build
+          uv run twine check dist/*
+          uv venv /tmp/ares-wheel-env
+          uv pip install --python /tmp/ares-wheel-env/bin/python dist/*.whl
+          cd /tmp
+          /tmp/ares-wheel-env/bin/ares version
+          /tmp/ares-wheel-env/bin/ares doctor
+          /tmp/ares-wheel-env/bin/ares demo --bars 500
+
+      - name: Write review artifacts
+        if: ${{ always() }}
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          import tomllib
+
+          data = tomllib.loads(Path("uv.lock").read_text(encoding="utf-8"))
+          versions = {}
+          for package in data.get("package", []):
+              name = package.get("name")
+              if name in {"cryptography", "twine"}:
+                  versions.setdefault(name, []).append(package.get("version", ""))
+
+          lines = [
+              "ARES dependency lock candidate",
+              f"source_sha={os.environ.get('GITHUB_SHA', '')}",
+              "cryptography=" + ",".join(versions.get("cryptography", [])),
+              "twine=" + ",".join(versions.get("twine", [])),
+              "intent=review artifact only; no repository write or merge performed",
+          ]
+          Path("dependency-candidate-summary.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+          PY
+          git diff -- pyproject.toml uv.lock > dependency-candidate.diff
+
+      - name: Upload candidate for human/worker review
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dependency-lock-candidate-${{ github.run_id }}
+          path: |
+            pyproject.toml
+            uv.lock
+            dependency-candidate.diff
+            dependency-candidate-summary.txt
+          if-no-files-found: error
+          retention-days: 7
