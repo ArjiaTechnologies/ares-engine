@@ -52,7 +52,7 @@ jobs:
       - name: Regenerate only targeted lock packages
         run: uv lock --upgrade-package cryptography --upgrade-package twine
 
-      - name: Verify resolved target versions
+      - name: Verify resolved candidate versions
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -73,11 +73,8 @@ jobs:
               parts = re.findall(r"\d+", version)
               return tuple(int(part) for part in parts[:3])
 
-          if max(numeric(version) for version in found["cryptography"]) < (50, 0, 0):
-              raise SystemExit(
-                  "candidate lock did not resolve cryptography to the audit fixed floor >=50.0.0: "
-                  + ", ".join(found["cryptography"])
-              )
+          if max(numeric(version) for version in found["twine"]) < (7, 0, 0):
+              raise SystemExit("candidate lock did not resolve Twine >=7.0.0")
 
           print("cryptography=" + ",".join(found["cryptography"]))
           print("twine=" + ",".join(found["twine"]))
@@ -85,9 +82,6 @@ jobs:
 
       - name: Sync candidate environment
         run: uv sync --frozen --extra dev
-
-      - name: Audit candidate dependencies
-        run: uv run pip-audit
 
       - name: Run focused non-ML quality checks
         run: |
@@ -107,6 +101,33 @@ jobs:
           /tmp/ares-wheel-env/bin/ares version
           /tmp/ares-wheel-env/bin/ares doctor
           /tmp/ares-wheel-env/bin/ares demo --bars 500
+
+      - name: Enforce cryptography audit fixed floor
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          import tomllib
+
+          data = tomllib.loads(Path("uv.lock").read_text(encoding="utf-8"))
+          versions = [
+              package.get("version", "")
+              for package in data.get("package", [])
+              if package.get("name") == "cryptography"
+          ]
+
+          def numeric(version: str) -> tuple[int, ...]:
+              return tuple(int(part) for part in re.findall(r"\d+", version)[:3])
+
+          if not versions or max(numeric(version) for version in versions) < (50, 0, 0):
+              raise SystemExit(
+                  "candidate lock did not resolve cryptography to the audit fixed floor >=50.0.0: "
+                  + ", ".join(versions)
+              )
+          PY
+
+      - name: Audit candidate dependencies
+        run: uv run pip-audit
 
       - name: Write review artifacts
         if: ${{ always() }}
