@@ -2,6 +2,10 @@ name: Dependency lock candidate
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/dependency-lock-candidate.yml"
 
 permissions:
   contents: read
@@ -13,10 +17,19 @@ concurrency:
 jobs:
   candidate:
     name: Regenerate and validate candidate lock
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Bind candidate to the exact checked-out source
+        run: |
+          source_sha="$(git rev-parse HEAD)"
+          test "$source_sha" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          echo "SOURCE_SHA=$source_sha" >> "$GITHUB_ENV"
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           python-version: "3.11"
@@ -112,7 +125,7 @@ jobs:
 
           lines = [
               "ARES dependency lock candidate",
-              f"source_sha={os.environ.get('GITHUB_SHA', '')}",
+              f"source_sha={os.environ.get('SOURCE_SHA', '')}",
               "cryptography=" + ",".join(versions.get("cryptography", [])),
               "twine=" + ",".join(versions.get("twine", [])),
               "intent=review artifact only; no repository write or merge performed",
