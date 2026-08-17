@@ -124,7 +124,8 @@ jobs:
               raise SystemExit("Cryptography AES-GCM round trip failed")
 
           with TemporaryDirectory() as directory:
-              mlflow.set_tracking_uri(Path(directory).as_uri())
+              database = Path(directory, "mlflow.db").as_posix()
+              mlflow.set_tracking_uri(f"sqlite:///{database}")
               mlflow.set_experiment("ares-compatibility-smoke")
               with mlflow.start_run():
                   mlflow.log_param("cryptography", cryptography.__version__)
