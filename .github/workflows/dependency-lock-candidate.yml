@@ -103,7 +103,6 @@ jobs:
 
       - name: Validate installed dependency metadata and tracking smoke
         run: |
-          uv pip check
           uv run --extra tracking python - <<'PY'
           from pathlib import Path
           from tempfile import TemporaryDirectory
@@ -131,6 +130,7 @@ jobs:
                   mlflow.log_param("cryptography", cryptography.__version__)
                   mlflow.log_metric("smoke", 1.0)
           PY
+          uv pip check
 
       - name: Run focused non-ML quality checks
         run: |
