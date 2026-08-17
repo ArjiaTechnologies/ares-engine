@@ -35,22 +35,35 @@ jobs:
           python-version: "3.11"
           enable-cache: true
 
-      - name: Widen only the reviewed Twine bound
+      - name: Apply reviewed dependency metadata changes
         run: |
           python - <<'PY'
           from pathlib import Path
 
           path = Path("pyproject.toml")
           text = path.read_text(encoding="utf-8")
-          old = '  "twine>=6,<7",'
-          new = '  "twine>=6,<8",'
-          if text.count(old) != 1:
+          old_twine = '  "twine>=6,<7",'
+          new_twine = '  "twine>=6,<8",'
+          if text.count(old_twine) != 1:
               raise SystemExit("expected exactly one reviewed twine>=6,<7 constraint")
-          path.write_text(text.replace(old, new), encoding="utf-8")
+          if "[tool.uv]" in text or "override-dependencies" in text:
+              raise SystemExit("unexpected pre-existing uv dependency override")
+
+          override = '''
+
+[tool.uv]
+# MLflow merged support for Cryptography 50 in mlflow/mlflow#24872 at
+# d32e8f3193c327951c28a10d0bc0d088056b74a1. Remove this override when a
+# compatible MLflow release is available from PyPI.
+override-dependencies = [
+  "cryptography>=50,<51",
+]
+'''
+          path.write_text(text.replace(old_twine, new_twine) + override, encoding="utf-8")
           PY
 
       - name: Regenerate only targeted lock packages
-        run: uv lock --upgrade-package cryptography --upgrade-package twine
+        run: uv lock --upgrade-package cryptography --upgrade-package mlflow --upgrade-package twine
 
       - name: Verify resolved candidate versions
         run: |
@@ -63,10 +76,10 @@ jobs:
           found = {}
           for package in data.get("package", []):
               name = package.get("name")
-              if name in {"cryptography", "twine"}:
+              if name in {"cryptography", "mlflow", "twine"}:
                   found.setdefault(name, []).append(package.get("version", ""))
 
-          if not found.get("cryptography") or not found.get("twine"):
+          if not found.get("cryptography") or not found.get("mlflow") or not found.get("twine"):
               raise SystemExit(f"missing target package in uv.lock: {found}")
 
           def numeric(version: str) -> tuple[int, ...]:
@@ -75,13 +88,49 @@ jobs:
 
           if max(numeric(version) for version in found["twine"]) < (7, 0, 0):
               raise SystemExit("candidate lock did not resolve Twine >=7.0.0")
+          if max(numeric(version) for version in found["cryptography"]) < (50, 0, 0):
+              raise SystemExit("candidate lock did not resolve Cryptography >=50.0.0")
+          if max(numeric(version) for version in found["mlflow"]) < (3, 15, 1):
+              raise SystemExit("candidate lock did not resolve MLflow >=3.15.1")
 
           print("cryptography=" + ",".join(found["cryptography"]))
+          print("mlflow=" + ",".join(found["mlflow"]))
           print("twine=" + ",".join(found["twine"]))
           PY
 
       - name: Sync candidate environment
-        run: uv sync --frozen --extra dev
+        run: uv sync --frozen --extra dev --extra tracking
+
+      - name: Validate installed dependency metadata and tracking smoke
+        run: |
+          uv pip check
+          uv run --extra tracking python - <<'PY'
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+
+          import cryptography
+          import mlflow
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+          if tuple(int(part) for part in cryptography.__version__.split(".")[:3]) < (50, 0, 0):
+              raise SystemExit(f"unexpected Cryptography version: {cryptography.__version__}")
+          if tuple(int(part) for part in mlflow.__version__.split(".")[:3]) < (3, 15, 1):
+              raise SystemExit(f"unexpected MLflow version: {mlflow.__version__}")
+
+          key = AESGCM.generate_key(bit_length=128)
+          cipher = AESGCM(key)
+          nonce = bytes(range(12))
+          plaintext = b"ares-mlflow-cryptography-compatibility"
+          if cipher.decrypt(nonce, cipher.encrypt(nonce, plaintext, None), None) != plaintext:
+              raise SystemExit("Cryptography AES-GCM round trip failed")
+
+          with TemporaryDirectory() as directory:
+              mlflow.set_tracking_uri(Path(directory).as_uri())
+              mlflow.set_experiment("ares-compatibility-smoke")
+              with mlflow.start_run():
+                  mlflow.log_param("cryptography", cryptography.__version__)
+                  mlflow.log_metric("smoke", 1.0)
+          PY
 
       - name: Run focused non-ML quality checks
         run: |
@@ -141,13 +190,14 @@ jobs:
           versions = {}
           for package in data.get("package", []):
               name = package.get("name")
-              if name in {"cryptography", "twine"}:
+              if name in {"cryptography", "mlflow", "twine"}:
                   versions.setdefault(name, []).append(package.get("version", ""))
 
           lines = [
               "ARES dependency lock candidate",
               f"source_sha={os.environ.get('SOURCE_SHA', '')}",
               "cryptography=" + ",".join(versions.get("cryptography", [])),
+              "mlflow=" + ",".join(versions.get("mlflow", [])),
               "twine=" + ",".join(versions.get("twine", [])),
               "intent=review artifact only; no repository write or merge performed",
           ]
