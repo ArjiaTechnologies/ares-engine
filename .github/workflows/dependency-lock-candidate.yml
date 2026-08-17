@@ -51,14 +51,14 @@ jobs:
 
           override = '''
 
-[tool.uv]
-# MLflow merged support for Cryptography 50 in mlflow/mlflow#24872 at
-# d32e8f3193c327951c28a10d0bc0d088056b74a1. Remove this override when a
-# compatible MLflow release is available from PyPI.
-override-dependencies = [
-  "cryptography>=50,<51",
-]
-'''
+          [tool.uv]
+          # MLflow merged support for Cryptography 50 in mlflow/mlflow#24872 at
+          # d32e8f3193c327951c28a10d0bc0d088056b74a1. Remove this override when a
+          # compatible MLflow release is available from PyPI.
+          override-dependencies = [
+            "cryptography>=50,<51",
+          ]
+          '''
           path.write_text(text.replace(old_twine, new_twine) + override, encoding="utf-8")
           PY
 
