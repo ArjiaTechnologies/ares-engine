@@ -42,28 +42,27 @@ jobs:
 
           path = Path("pyproject.toml")
           text = path.read_text(encoding="utf-8")
+          old_mlflow = '  "mlflow>=2.17,<4",'
+          new_mlflow = '  "mlflow-skinny>=3.15.1,<4",'
           old_twine = '  "twine>=6,<7",'
           new_twine = '  "twine>=6,<8",'
+          if text.count(old_mlflow) != 1:
+              raise SystemExit("expected exactly one reviewed mlflow>=2.17,<4 constraint")
           if text.count(old_twine) != 1:
               raise SystemExit("expected exactly one reviewed twine>=6,<7 constraint")
           if "[tool.uv]" in text or "override-dependencies" in text:
               raise SystemExit("unexpected pre-existing uv dependency override")
+          if "mlflow-skinny" in text:
+              raise SystemExit("unexpected pre-existing mlflow-skinny constraint")
 
-          override = '''
-
-          [tool.uv]
-          # MLflow merged support for Cryptography 50 in mlflow/mlflow#24872 at
-          # d32e8f3193c327951c28a10d0bc0d088056b74a1. Remove this override when a
-          # compatible MLflow release is available from PyPI.
-          override-dependencies = [
-            "cryptography>=50,<51",
-          ]
-          '''
-          path.write_text(text.replace(old_twine, new_twine) + override, encoding="utf-8")
+          path.write_text(
+              text.replace(old_mlflow, new_mlflow).replace(old_twine, new_twine),
+              encoding="utf-8",
+          )
           PY
 
       - name: Regenerate only targeted lock packages
-        run: uv lock --upgrade-package cryptography --upgrade-package mlflow --upgrade-package twine
+        run: uv lock --upgrade-package cryptography --upgrade-package gitpython --upgrade-package mlflow-skinny --upgrade-package sqlparse --upgrade-package twine
 
       - name: Verify resolved candidate versions
         run: |
@@ -76,25 +75,35 @@ jobs:
           found = {}
           for package in data.get("package", []):
               name = package.get("name")
-              if name in {"cryptography", "mlflow", "twine"}:
+              if name in {"cryptography", "gitpython", "mlflow", "mlflow-skinny", "sqlparse", "twine"}:
                   found.setdefault(name, []).append(package.get("version", ""))
 
-          if not found.get("cryptography") or not found.get("mlflow") or not found.get("twine"):
-              raise SystemExit(f"missing target package in uv.lock: {found}")
+          required = {"cryptography", "gitpython", "mlflow-skinny", "sqlparse", "twine"}
+          missing = sorted(required - found.keys())
+          if missing:
+              raise SystemExit(f"missing target packages in uv.lock: {missing}; found={found}")
+          if found.get("mlflow"):
+              raise SystemExit(f"full mlflow distribution remains in uv.lock: {found['mlflow']}")
 
           def numeric(version: str) -> tuple[int, ...]:
               parts = re.findall(r"\d+", version)
               return tuple(int(part) for part in parts[:3])
 
-          if max(numeric(version) for version in found["twine"]) < (7, 0, 0):
-              raise SystemExit("candidate lock did not resolve Twine >=7.0.0")
           if max(numeric(version) for version in found["cryptography"]) < (50, 0, 0):
               raise SystemExit("candidate lock did not resolve Cryptography >=50.0.0")
-          if max(numeric(version) for version in found["mlflow"]) < (3, 15, 1):
-              raise SystemExit("candidate lock did not resolve MLflow >=3.15.1")
+          if max(numeric(version) for version in found["gitpython"]) < (3, 1, 58):
+              raise SystemExit("candidate lock did not resolve GitPython >=3.1.58")
+          if max(numeric(version) for version in found["mlflow-skinny"]) < (3, 15, 1):
+              raise SystemExit("candidate lock did not resolve mlflow-skinny >=3.15.1")
+          if max(numeric(version) for version in found["sqlparse"]) < (0, 6, 0):
+              raise SystemExit("candidate lock did not resolve SQLParse >=0.6.0")
+          if max(numeric(version) for version in found["twine"]) < (7, 0, 0):
+              raise SystemExit("candidate lock did not resolve Twine >=7.0.0")
 
           print("cryptography=" + ",".join(found["cryptography"]))
-          print("mlflow=" + ",".join(found["mlflow"]))
+          print("gitpython=" + ",".join(found["gitpython"]))
+          print("mlflow-skinny=" + ",".join(found["mlflow-skinny"]))
+          print("sqlparse=" + ",".join(found["sqlparse"]))
           print("twine=" + ",".join(found["twine"]))
           PY
 
@@ -104,6 +113,7 @@ jobs:
       - name: Validate installed dependency metadata and tracking smoke
         run: |
           uv run --extra tracking python - <<'PY'
+          from importlib.metadata import PackageNotFoundError, version
           from pathlib import Path
           from tempfile import TemporaryDirectory
 
@@ -113,8 +123,19 @@ jobs:
 
           if tuple(int(part) for part in cryptography.__version__.split(".")[:3]) < (50, 0, 0):
               raise SystemExit(f"unexpected Cryptography version: {cryptography.__version__}")
-          if tuple(int(part) for part in mlflow.__version__.split(".")[:3]) < (3, 15, 1):
-              raise SystemExit(f"unexpected MLflow version: {mlflow.__version__}")
+          skinny_version = version("mlflow-skinny")
+          if tuple(int(part) for part in skinny_version.split(".")[:3]) < (3, 15, 1):
+              raise SystemExit(f"unexpected mlflow-skinny version: {skinny_version}")
+          if mlflow.__version__ != skinny_version:
+              raise SystemExit(
+                  f"mlflow import version {mlflow.__version__} does not match mlflow-skinny {skinny_version}"
+              )
+          try:
+              full_version = version("mlflow")
+          except PackageNotFoundError:
+              full_version = None
+          if full_version is not None:
+              raise SystemExit(f"unexpected full mlflow distribution installed: {full_version}")
 
           key = AESGCM.generate_key(bit_length=128)
           cipher = AESGCM(key)
@@ -124,8 +145,8 @@ jobs:
               raise SystemExit("Cryptography AES-GCM round trip failed")
 
           with TemporaryDirectory() as directory:
-              database = Path(directory, "mlflow.db").as_posix()
-              mlflow.set_tracking_uri(f"sqlite:///{database}")
+              tracking_root = Path(directory, "mlruns").resolve()
+              mlflow.set_tracking_uri(tracking_root.as_uri())
               mlflow.set_experiment("ares-compatibility-smoke")
               with mlflow.start_run():
                   mlflow.log_param("cryptography", cryptography.__version__)
@@ -177,7 +198,7 @@ jobs:
           PY
 
       - name: Audit candidate dependencies
-        run: uv run pip-audit
+        run: uv run --extra tracking pip-audit
 
       - name: Write review artifacts
         if: ${{ always() }}
@@ -191,14 +212,17 @@ jobs:
           versions = {}
           for package in data.get("package", []):
               name = package.get("name")
-              if name in {"cryptography", "mlflow", "twine"}:
+              if name in {"cryptography", "gitpython", "mlflow", "mlflow-skinny", "sqlparse", "twine"}:
                   versions.setdefault(name, []).append(package.get("version", ""))
 
           lines = [
               "ARES dependency lock candidate",
               f"source_sha={os.environ.get('SOURCE_SHA', '')}",
               "cryptography=" + ",".join(versions.get("cryptography", [])),
-              "mlflow=" + ",".join(versions.get("mlflow", [])),
+              "gitpython=" + ",".join(versions.get("gitpython", [])),
+              "mlflow-full=" + ",".join(versions.get("mlflow", [])),
+              "mlflow-skinny=" + ",".join(versions.get("mlflow-skinny", [])),
+              "sqlparse=" + ",".join(versions.get("sqlparse", [])),
               "twine=" + ",".join(versions.get("twine", [])),
               "intent=review artifact only; no repository write or merge performed",
           ]
