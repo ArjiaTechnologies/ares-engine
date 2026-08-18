@@ -50,7 +50,7 @@ ml-torch = [
   "torch>=2.5,<3",
 ]
 tracking = [
-  "mlflow>=2.17,<4",
+  "mlflow-skinny>=3.15.1,<4",
   "river>=0.22,<1",
 ]
 dev = [
@@ -64,7 +64,7 @@ dev = [
   "pytest>=8.3,<10",
   "pytest-cov>=6,<8",
   "ruff>=0.9,<1",
-  "twine>=6,<7",
+  "twine>=6,<8",
   "types-PyYAML>=6,<7",
 ]
 
