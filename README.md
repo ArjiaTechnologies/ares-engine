@@ -2,6 +2,10 @@
 
 > An open-source machine-learning trading research and paper-inference engine for ETH market-data experimentation.
 
+<p align="center">
+  <img src="docs/assets/ares-engine-social-preview.jpg" alt="ARES Engine project artwork overlooking a futuristic city from an engineering workstation" width="100%">
+</p>
+
 ARES ingests public exchange candles, rejects inconsistent data, builds backward-looking features, trains sequence models, runs chronological cost-aware validation, exports verified bundles, and emits read-only paper signals. It does not place orders, manage balances, require exchange credentials, establish profitability, or provide investment advice.
 
 The Python distribution is `ares-eth-engine`; the import package is `ares_engine`; the CLI is `ares`. The implementation follows the supplied Whiplash technical dossier where practical, but that dossier is a specification—not source code or evidence of correctness.
