@@ -19,6 +19,7 @@ from .config import AresConfig, load_config
 from .data.ingest import ingest_market_data
 from .data.quality import validate_cross_venue, validate_ohlcv
 from .data.storage import current_generation, market_path, quality_path, read_market
+from .holdout import run_locked_holdout
 from .live import generate_paper_signal
 from .models import backend_name
 from .promotion import promote as promote_bundle
@@ -251,6 +252,27 @@ def search(
             "best_config": best_config.model_dump(mode="json"),
         }
     )
+
+
+@app.command("locked-holdout")
+def locked_holdout(
+    config_path: Path = typer.Option(Path("configs/default.yaml"), "--config"),
+    holdout_bars: int = typer.Option(..., "--holdout-bars", min=50),
+    embargo_bars: int | None = typer.Option(None, "--embargo-bars", min=1),
+    output_dir: Path | None = typer.Option(None, "--output-dir"),
+    verbose: int = typer.Option(0, min=0, max=2),
+) -> None:
+    """Quarantine final history, search earlier bars, and evaluate it exactly once."""
+    config, _, frame = _primary_frame(config_path)
+    report = run_locked_holdout(
+        frame,
+        config,
+        holdout_bars=holdout_bars,
+        embargo_bars=embargo_bars,
+        output_dir=output_dir,
+        verbose=verbose,
+    )
+    _json(report)
 
 
 @app.command()

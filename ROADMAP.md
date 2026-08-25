@@ -9,7 +9,9 @@
 
 ## v0.2 — stronger research controls
 
-- automated locked post-search holdout and benchmark baselines
+- automated locked post-search holdout and benchmark baselines — first bounded
+  milestone implemented through explicit `ares locked-holdout`; further
+  independent replication and forward paper evidence remain required
 - recent-window challenger replay before promotion
 - probability calibration and threshold stability reports
 - MLflow experiment logging and River-based drift monitors

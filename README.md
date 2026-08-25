@@ -53,6 +53,7 @@ See [DISCLAIMER.md](DISCLAIMER.md), [SECURITY.md](SECURITY.md), and [docs/resear
 - Fixed-length sequences, purged expanding-window folds, and training-fold-only scaling.
 - TensorFlow/Keras LSTM and causal residual TCN models.
 - Optuna study isolation over the full normalized OHLCV payload and every material research configuration.
+- An explicit one-time, post-search final holdout with a maximum-horizon embargo, frozen configurations, independent research-only early stopping, immutable commitment receipts, and reproducible cash/buy-and-hold/causal-momentum baselines.
 - Delayed long/flat/short backtesting with fees, slippage, doubled-cost stress, drawdown, turnover, exposure, hit rate, trade counts, and bankruptcy reporting.
 - Immutable seven-file bundles, hostile-file checks, runtime shape validation, manifest-anchored promotion, and fail-closed paper inference.
 - Process locks for ingestion, scheduler cycles, promotion, and paper-signal logs.
@@ -88,6 +89,7 @@ uv run ares ingest --config configs/default.yaml
 uv run ares quality --config configs/default.yaml
 uv run ares validate --config configs/default.yaml
 uv run ares search --config configs/default.yaml
+uv run ares locked-holdout --config configs/default.yaml --holdout-bars 720
 uv run ares train --config artifacts/best_config.yaml --name ares_candidate_001
 uv run ares promote artifacts/ares_candidate_001 --config artifacts/best_config.yaml
 uv run ares paper --config artifacts/best_config.yaml
@@ -182,7 +184,21 @@ The current authoritative audit is [docs/audits/sol/SOL_AUDIT.md](docs/audits/so
 
 ## Research limitations
 
-ARES does not implement a locked nested post-search final holdout. Search and early stopping use configured chronological validation windows, so final performance claims require a separately locked dataset and a forward paper period. OHLC bars cannot establish intrabar ordering. Fees, slippage, latency, and liquidity are assumptions. Public exchange history can be incomplete, endpoint compatibility can change, and market regimes change. Historical performance is not evidence of future results.
+The explicit `ares locked-holdout` workflow quarantines its final chronological
+partition before Optuna search, embargoes every search-space label horizon,
+freezes the selected configuration, fits its scaler and early-stopping split on
+research rows only, and consumes the final evaluation before inference starts.
+Its cash, buy-and-hold, and causal-momentum baselines use the same delayed,
+cost-aware backtest. An interrupted or completed commitment cannot be rerun.
+The legacy `ares search`, `ares validate`, and training commands do not imply
+that this optional workflow ran; inspect the exact commitment and final report.
+No local digest authenticates an author or defends against a hostile same-user
+process. A clean holdout remains historical evidence, not profitability, and a
+separate forward paper period is still required. OHLC bars cannot establish
+intrabar ordering. Fees, slippage, latency, and liquidity are assumptions.
+Public exchange history can be incomplete, endpoint compatibility can change,
+and market regimes change. Historical performance is not evidence of future
+results.
 
 Before any capital use, a separate execution service would need least-privilege credentials, risk and loss limits, kill switches, reconciliation, observability, incident procedures, independent security review, and an audited forward record. None of that is part of ARES.
 
