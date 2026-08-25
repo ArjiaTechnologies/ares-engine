@@ -22,7 +22,26 @@ Never tune historical fees downward. Record failed, pruned, non-finite, bankrupt
 
 ## 5. Lock final evaluation
 
-ARES does not yet automate nested final holdout selection. Freeze the chosen configuration and evaluate it once on data excluded from all search and early stopping. Repeated inspection contaminates that holdout.
+Run `ares locked-holdout --config configs/default.yaml --holdout-bars 720` to
+precommit the final chronological partition before any Optuna trial. The
+workflow hashes the complete dataset, isolated research partition, quarantined
+holdout, and base configuration; its embargo is at least the maximum label
+horizon permitted anywhere in the search space.
+
+Only the earlier research partition reaches search. After a passing trial is
+selected, its configuration is frozen; scaler fitting, training labels, and
+the independent early-stopping window remain in research history. The selected
+candidate and deterministic cash, buy-and-hold, and causal-momentum baselines
+are evaluated on the exact held-out window under the same delayed execution,
+fees, slippage, solvency gate, and doubled-cost stress.
+
+The commitment is atomically marked `EVALUATION_STARTED` before final inference.
+A failed, interrupted, or completed evaluation is consumed and cannot be
+replayed through the same commitment. Dataset/configuration mutation, short
+embargoes, unexpected study identity, invalid data, and insolvency fail closed.
+The separate legacy search command does not create a locked-holdout claim.
+This is trusted-local historical evidence, not authenticated authorship,
+profitability, live-order authority, or a substitute for a forward paper test.
 
 ## 6. Forward paper test
 

@@ -32,6 +32,8 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy --strict src
+      - name: Verify locked final holdout adversarial invariants
+        run: uv run pytest tests/test_locked_holdout.py -q
       - run: uv run pytest -m "not ml" --cov=ares_engine --cov-branch --cov-report=term-missing
 
   ml-smoke:
