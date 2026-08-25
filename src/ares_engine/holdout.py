@@ -12,7 +12,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -72,7 +72,7 @@ def _partitions(
 ) -> tuple[pd.DataFrame, int, int, int]:
     if isinstance(holdout_bars, bool) or holdout_bars < 50:
         raise HoldoutIntegrityError("holdout_requires_at_least_50_bars")
-    max_search_horizon = max(int(value) for value in SEARCH_SPACE["horizon_bars"])
+    max_search_horizon = max(cast(list[int], SEARCH_SPACE["horizon_bars"]))
     minimum_embargo = max(max_search_horizon, config.labels.horizon_bars)
     embargo = minimum_embargo if embargo_bars is None else embargo_bars
     if isinstance(embargo, bool) or embargo < minimum_embargo:
@@ -139,8 +139,7 @@ def _evaluate_holdout(
     horizon = config.labels.horizon_bars
     research = np.flatnonzero(dataset.source_rows + horizon < research_end)
     holdout = np.flatnonzero(
-        (dataset.source_rows >= holdout_start)
-        & (dataset.source_rows + horizon < len(frame))
+        (dataset.source_rows >= holdout_start) & (dataset.source_rows + horizon < len(frame))
     )
     if len(holdout) < 30:
         raise HoldoutIntegrityError("holdout_has_insufficient_complete_samples")
@@ -185,7 +184,10 @@ def _evaluate_holdout(
         config=config,
     )
     directional_holdout = directional[holdout]
-    if directional_holdout.any() and len(np.unique(dataset.y_binary[holdout][directional_holdout])) > 1:
+    if (
+        directional_holdout.any()
+        and len(np.unique(dataset.y_binary[holdout][directional_holdout])) > 1
+    ):
         candidate["auc"] = float(
             roc_auc_score(
                 dataset.y_binary[holdout][directional_holdout],
@@ -280,7 +282,9 @@ def run_locked_holdout(
                 "one_time_evaluation": True,
                 "order_execution_enabled": False,
             }
-            commitment["commitment_sha256"] = _canonical_hash(commitment)
+            commitment["commitment_sha256"] = _canonical_hash(
+                {key: value for key, value in commitment.items() if key != "state"}
+            )
             atomic_write_json(commitment_path, commitment)
 
             study, selected_config = run_search(
@@ -318,7 +322,9 @@ def run_locked_holdout(
                     verbose=verbose,
                 )
                 if _configuration_hash(selected_config) != selected_hash:
-                    raise HoldoutIntegrityError("holdout_selected_configuration_mutated_during_evaluation")
+                    raise HoldoutIntegrityError(
+                        "holdout_selected_configuration_mutated_during_evaluation"
+                    )
                 if _data_fingerprint(frame, frozen_config) != full_fingerprint:
                     raise HoldoutIntegrityError("holdout_dataset_mutated_during_evaluation")
                 _check_finite(result)

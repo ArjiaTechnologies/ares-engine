@@ -94,6 +94,19 @@ def test_holdout_is_quarantined_and_commitment_is_consumed_once(
     commitment = json.loads((tmp_path / "commitment.json").read_text(encoding="utf-8"))
     assert commitment["state"] == "EVALUATION_COMPLETE"
     assert commitment["report_sha256"] == result["report_sha256"]
+    immutable_fields = {
+        key: value
+        for key, value in commitment.items()
+        if key
+        not in {
+            "state",
+            "commitment_sha256",
+            "selected_trial_number",
+            "selected_configuration_sha256",
+            "report_sha256",
+        }
+    }
+    assert holdout._canonical_hash(immutable_fields) == commitment["commitment_sha256"]
 
     with pytest.raises(holdout.HoldoutIntegrityError, match="holdout_already_consumed"):
         holdout.run_locked_holdout(frame, config, holdout_bars=80, output_dir=tmp_path)
@@ -169,7 +182,9 @@ def test_research_configuration_mutation_fails_before_holdout_access(
         return SimpleNamespace(user_attrs={"ares_selected_trial_number": 1}), config
 
     monkeypatch.setattr(holdout, "run_search", mutate)
-    monkeypatch.setattr(holdout, "_evaluate_holdout", lambda *args, **kwargs: evaluated.append(True))
+    monkeypatch.setattr(
+        holdout, "_evaluate_holdout", lambda *args, **kwargs: evaluated.append(True)
+    )
     with pytest.raises(holdout.HoldoutIntegrityError, match="configuration_mutated_during_search"):
         holdout.run_locked_holdout(_frame(), _config(), holdout_bars=80, output_dir=tmp_path)
     assert evaluated == []
@@ -188,9 +203,10 @@ def test_wrong_study_partition_and_unfrozen_winner_fail_closed(
         def invalid_search(
             frame: pd.DataFrame,
             config: AresConfig,
+            _attributes: dict[str, object] = attributes,
             **kwargs: Any,
         ) -> tuple[SimpleNamespace, AresConfig]:
-            values = dict(attributes)
+            values = dict(_attributes)
             if values.get("ares_data_fingerprint") == "correct":
                 values["ares_data_fingerprint"] = _data_fingerprint(frame, config)
             return SimpleNamespace(user_attrs=values), config.model_copy(deep=True)
@@ -212,14 +228,21 @@ def test_insolvent_and_nonfinite_final_results_consume_evaluation(
     for index, (mutate, blocker) in enumerate(
         (
             (lambda result: result["candidate"].update(solvent=False), "insolvent"),
-            (lambda result: result["candidate"]["backtest"].update(total_return=float("nan")), "non_finite"),
+            (
+                lambda result: result["candidate"]["backtest"].update(total_return=float("nan")),
+                "non_finite",
+            ),
         )
     ):
         _stub_search(monkeypatch)
 
-        def invalid_result(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        def invalid_result(
+            *args: Any,
+            _mutation: Any = mutate,
+            **kwargs: Any,
+        ) -> dict[str, Any]:
             result = _result()
-            mutate(result)
+            _mutation(result)
             return result
 
         monkeypatch.setattr(holdout, "_evaluate_holdout", invalid_result)
