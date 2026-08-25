@@ -2,6 +2,8 @@
 
 > An open-source machine-learning trading research and paper-inference engine for ETH market-data experimentation.
 
+Project overview, architecture, and documented limitations: https://arjia.tech/ares-engine
+
 <p align="center">
   <img src="docs/assets/ares-engine-social-preview.jpg" alt="ARES Engine project artwork overlooking a futuristic city from an engineering workstation" width="100%">
 </p>
