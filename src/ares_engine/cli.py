@@ -432,11 +432,12 @@ def verify_offline(
 ) -> None:
     """Exercise quality, ML, export, promotion, reload, and paper inference on synthetic data."""
     config = load_config(_resolve_config(config_path))
-    required_bars = minimum_required_bars(config)
+    required_bars = minimum_required_bars(config) + config.gates.recent_replay_bars
     if bars < required_bars:
         raise typer.BadParameter(
-            f"--bars {bars} cannot satisfy the configured folds: feature warm-up, lookback, "
-            f"min_train_bars, purge, and validation_bars need at least {required_bars} rows"
+            f"--bars {bars} cannot satisfy the configured folds and reserved replay window: "
+            "feature warm-up, lookback, min_train_bars, purge, validation_bars, and "
+            f"recent_replay_bars need at least {required_bars} rows"
         )
     run_name = datetime.now(tz=UTC).strftime("run-%Y%m%dT%H%M%SZ")
     run_root = output_dir / run_name
@@ -473,14 +474,19 @@ def verify_offline(
     if not (primary_report.passed and secondary_report.passed and cross_report.passed):
         raise typer.BadParameter("Synthetic verification data unexpectedly failed quality gates")
 
-    bundle, metrics = train_candidate(
+    run_root.mkdir(parents=True, exist_ok=True)
+    source_path = run_root / "synthetic-primary.parquet"
+    primary.to_parquet(source_path, index=False)
+    bundle, metrics, replay_report, replay = prepare_replayed_challenger(
         primary,
         config,
+        source_path=source_path,
         bundle_name="ares_smoke_verified",
         repository_root=Path.cwd(),
+        run_search_first=False,
         verbose=0,
     )
-    decision = promote_bundle(bundle, run_root, config.gates)
+    decision = promote_bundle(bundle, run_root, config.gates, replay_report=replay_report)
     as_of = primary["timestamp"].max() + timedelta(
         seconds=timeframe_to_seconds(config.data.timeframe)
     )
@@ -505,6 +511,7 @@ def verify_offline(
             "cross_venue": cross_report.to_dict(),
         },
         "validation": metrics,
+        "recent_replay": replay,
         "promotion": decision.to_dict(),
         "paper_signal": signal.to_dict(),
     }
