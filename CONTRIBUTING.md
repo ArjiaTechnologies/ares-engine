@@ -6,5 +6,6 @@
 4. Test an installed wheel outside the source checkout when packaging or CLI behavior changes.
 5. Add independent or adversarial tests for timestamp alignment, leakage, scaling, fold boundaries, cost accounting, bankruptcy, storage publication, evidence validation, bundle integrity, promotion, and inference gates.
 6. Do not weaken a data, risk, integrity, or freshness gate to make a result pass.
+7. Promotion changes must preserve the canonical recent-window replay requirement: the window is reserved before search/fitting, cannot overlap bundle provenance, and remains exact-source and exact-manifest bound.
 
 Research pull requests must state chronology, data sources, fees, slippage, drawdown, turnover, trade count, rejected candidates, and limitations. A headline return is not sufficient evidence.

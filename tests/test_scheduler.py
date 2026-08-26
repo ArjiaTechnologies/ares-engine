@@ -13,11 +13,10 @@ def test_deep_cycle_runs_search_before_training(monkeypatch, tmp_path: Path) -> 
     config.storage.root = tmp_path / "data"
     config.storage.artifacts = tmp_path / "artifacts"
     config.scheduler.run_search_on_deep = True
-    best_config = config.model_copy(deep=True)
-    best_config.model.family = "tcn"
     calls: list[str] = []
     frame = object()
     bundle = tmp_path / "artifacts" / "candidate"
+    replay_report = tmp_path / "artifacts" / "replays" / "candidate.json"
 
     monkeypatch.setattr("ares_engine.scheduler.load_config", lambda _: config)
     monkeypatch.setattr(
@@ -26,31 +25,26 @@ def test_deep_cycle_runs_search_before_training(monkeypatch, tmp_path: Path) -> 
     )
     monkeypatch.setattr("ares_engine.scheduler.read_market", lambda _: frame)
 
-    def fake_search(received_frame, received_config):
+    def fake_prepare(received_frame, received_config, **kwargs):
         assert received_frame is frame
         assert received_config is config
-        calls.append("search")
-        return object(), best_config
-
-    def fake_train(received_frame, received_config, **kwargs):
-        assert received_frame is frame
-        assert received_config is best_config
         assert kwargs["source_path"].name == "1h.parquet"
-        calls.append("train")
-        return bundle, {}
+        assert kwargs["run_search_first"] is True
+        calls.extend(["search", "train", "replay"])
+        return bundle, {}, replay_report, {"passed": True}
 
-    def fake_promote(received_bundle, artifacts, gates):
+    def fake_promote(received_bundle, artifacts, gates, **kwargs):
         assert received_bundle == bundle
-        assert artifacts == best_config.storage.artifacts
-        assert gates is best_config.gates
+        assert artifacts == config.storage.artifacts
+        assert gates is config.gates
+        assert kwargs["replay_report"] == replay_report
         calls.append("promote")
 
-    monkeypatch.setattr("ares_engine.scheduler.run_search", fake_search)
-    monkeypatch.setattr("ares_engine.scheduler.train_candidate", fake_train)
+    monkeypatch.setattr("ares_engine.scheduler.prepare_replayed_challenger", fake_prepare)
     monkeypatch.setattr("ares_engine.scheduler.promote", fake_promote)
 
     deep_cycle(Path("config.yaml"))
-    assert calls == ["ingest", "search", "train", "promote"]
+    assert calls == ["ingest", "search", "train", "replay", "promote"]
 
 
 def test_cycle_lock_fails_closed_when_another_cycle_is_running(tmp_path: Path) -> None:

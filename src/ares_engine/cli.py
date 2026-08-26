@@ -25,6 +25,7 @@ from .models import backend_name
 from .promotion import promote as promote_bundle
 from .promotion import resolve_champion
 from .public_audit import run_public_ingestion_audit, validate_public_ingestion_report
+from .replay import prepare_replayed_challenger
 from .scheduler import deep_cycle, quick_cycle, run_scheduler
 from .search import run_search
 from .synthetic import make_synthetic_ohlcv
@@ -294,14 +295,49 @@ def train(
     _json({"bundle": bundle, "score": metrics["score"], "passed": metrics["passed"]})
 
 
+@app.command("prepare-challenger")
+def prepare_challenger(
+    config_path: Path = typer.Option(Path("configs/default.yaml"), "--config"),
+    bundle_name: str | None = typer.Option(None, "--name"),
+    skip_search: bool = typer.Option(False, "--skip-search"),
+    verbose: int = typer.Option(0, min=0, max=2),
+) -> None:
+    """Reserve recent history, search/train earlier bars, and write replay evidence."""
+    config, source, frame = _primary_frame(config_path)
+    bundle, metrics, replay_report, replay = prepare_replayed_challenger(
+        frame,
+        config,
+        source_path=source,
+        repository_root=Path.cwd(),
+        bundle_name=bundle_name,
+        run_search_first=not skip_search,
+        verbose=verbose,
+    )
+    _json(
+        {
+            "bundle": bundle,
+            "score": metrics["score"],
+            "validation_passed": metrics["passed"],
+            "replay_report": replay_report,
+            "replay_passed": replay["passed"],
+        }
+    )
+
+
 @app.command()
 def promote(
     challenger: Path = typer.Argument(..., exists=True, file_okay=False),
     config_path: Path = typer.Option(Path("configs/default.yaml"), "--config"),
+    replay_report: Path = typer.Option(..., "--replay-report", exists=True, dir_okay=False),
 ) -> None:
-    """Promote a challenger only when it passes gates and beats the incumbent."""
+    """Promote only with exact unseen-window replay evidence and score improvement."""
     config = load_config(_resolve_config(config_path))
-    decision = promote_bundle(challenger, config.storage.artifacts, config.gates)
+    decision = promote_bundle(
+        challenger,
+        config.storage.artifacts,
+        config.gates,
+        replay_report=replay_report,
+    )
     _json(decision.to_dict())
 
 

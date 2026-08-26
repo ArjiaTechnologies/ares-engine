@@ -49,7 +49,9 @@ Load only trusted verified bundles. Use newly completed candles and every config
 
 ## 7. Promotion
 
-The challenger must be solvent, finite, gate-passing, internally consistent, contained in the artifacts root, and better than the incumbent by the configured margin. Reverify it under the promotion lock and atomically write a manifest-anchored champion pointer. Never mutate an old bundle.
+Use `ares prepare-challenger` for a promotable candidate. It reserves the exact configured latest bars before search, scaling, fitting, or early stopping, then replays the frozen verified bundle on that unseen window. The report binds the research cutoff, challenger manifest, complete source hash, latest source timestamp, normal-cost metrics, doubled-cost metrics, and recomputed gates.
+
+The challenger must be solvent, finite, validation-gate-passing, replay-gate-passing, internally consistent, contained in the artifacts root, and better than the incumbent by the configured margin. `ares promote` requires `--replay-report` under the canonical configuration, rejects overlap, stale/cross-bundle/weakened reports, re-verifies both bundle and report under the promotion lock, and atomically writes a manifest-and-replay-anchored champion pointer. Never mutate an old bundle or replay report. The standalone `search` and `train` commands are research primitives and do not independently establish replay eligibility.
 
 ## 8. Claims
 

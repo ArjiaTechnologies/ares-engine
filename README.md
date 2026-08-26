@@ -54,6 +54,7 @@ See [DISCLAIMER.md](DISCLAIMER.md), [SECURITY.md](SECURITY.md), and [docs/resear
 - TensorFlow/Keras LSTM and causal residual TCN models.
 - Optuna study isolation over the full normalized OHLCV payload and every material research configuration.
 - An explicit one-time, post-search final holdout with a maximum-horizon embargo, frozen configurations, independent research-only early stopping, immutable commitment receipts, and reproducible cash/buy-and-hold/causal-momentum baselines.
+- A promotion-time recent-window replay that reserves the latest configured bars before search or fitting, binds the frozen challenger and source bytes into an immutable report, reruns delayed normal/stress-cost backtests, and anchors passing evidence in the champion pointer.
 - Delayed long/flat/short backtesting with fees, slippage, doubled-cost stress, drawdown, turnover, exposure, hit rate, trade counts, and bankruptcy reporting.
 - Immutable seven-file bundles, hostile-file checks, runtime shape validation, manifest-anchored promotion, and fail-closed paper inference.
 - Process locks for ingestion, scheduler cycles, promotion, and paper-signal logs.
@@ -88,10 +89,11 @@ ARES_KERAS_BACKEND=torch uv run ares verify-offline --config configs/smoke.yaml 
 uv run ares ingest --config configs/default.yaml
 uv run ares quality --config configs/default.yaml
 uv run ares validate --config configs/default.yaml
-uv run ares search --config configs/default.yaml
 uv run ares locked-holdout --config configs/default.yaml --holdout-bars 720
-uv run ares train --config artifacts/best_config.yaml --name ares_candidate_001
-uv run ares promote artifacts/ares_candidate_001 --config artifacts/best_config.yaml
+uv run ares prepare-challenger --config configs/default.yaml --name ares_candidate_001
+uv run ares promote artifacts/ares_candidate_001 \
+  --config artifacts/best_config.yaml \
+  --replay-report artifacts/replays/ares_candidate_001.json
 uv run ares paper --config artifacts/best_config.yaml
 ```
 
@@ -199,6 +201,16 @@ intrabar ordering. Fees, slippage, latency, and liquidity are assumptions.
 Public exchange history can be incomplete, endpoint compatibility can change,
 and market regimes change. Historical performance is not evidence of future
 results.
+
+The promotion workflow separately uses `ares prepare-challenger` to reserve the
+configured latest window before search, scaling, fitting, or early stopping.
+Promotion requires the resulting exact-source, exact-bundle replay report and
+recomputes its sample-count, trade-count, drawdown, solvency, and doubled-cost
+gates before atomically anchoring the report hash in `champion.json`. The legacy
+`ares search` and `ares train` commands remain research primitives; by
+themselves they do not produce canonical replay evidence and cannot satisfy the
+default promotion policy. A passing replay is still historical evidence, not
+profitability or permission to trade.
 
 Before any capital use, a separate execution service would need least-privilege credentials, risk and loss limits, kill switches, reconciliation, observability, incident procedures, independent security review, and an audited forward record. None of that is part of ARES.
 

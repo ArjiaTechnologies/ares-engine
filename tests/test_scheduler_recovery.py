@@ -51,7 +51,14 @@ def test_failed_promotion_propagates_and_is_not_swallowed(tmp_path, monkeypatch)
     )
     monkeypatch.setattr(scheduler_module, "read_market", lambda _: object())
     monkeypatch.setattr(
-        scheduler_module, "train_candidate", lambda *a, **k: (tmp_path / "bundle", {})
+        scheduler_module,
+        "prepare_replayed_challenger",
+        lambda *a, **k: (
+            tmp_path / "bundle",
+            {},
+            tmp_path / "replay.json",
+            {"passed": True},
+        ),
     )
 
     def rejecting_promote(*args, **kwargs):
@@ -73,11 +80,11 @@ def test_failed_validation_prevents_promotion_call(tmp_path, monkeypatch) -> Non
     )
     monkeypatch.setattr(scheduler_module, "read_market", lambda _: object())
 
-    def failing_train(*args, **kwargs):
+    def failing_prepare(*args, **kwargs):
         raise ValueError("Candidate failed hard validation gates: ['drawdown']")
 
     promoted = {"called": False}
-    monkeypatch.setattr(scheduler_module, "train_candidate", failing_train)
+    monkeypatch.setattr(scheduler_module, "prepare_replayed_challenger", failing_prepare)
     monkeypatch.setattr(
         scheduler_module, "promote", lambda *a, **k: promoted.__setitem__("called", True)
     )
