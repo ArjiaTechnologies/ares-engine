@@ -67,6 +67,11 @@ gates:
   min_total_trades: 0
   require_positive_cost_stress: false
   min_promotion_score_improvement: 0.0
+  require_recent_replay: true
+  recent_replay_bars: 50
+  min_recent_replay_trades: 0
+  max_recent_replay_drawdown: 0.99
+  require_positive_recent_replay_stress: false
 search:
   n_trials: 1
   timeout_seconds: 300

@@ -12,7 +12,10 @@
 - automated locked post-search holdout and benchmark baselines — first bounded
   milestone implemented through explicit `ares locked-holdout`; further
   independent replication and forward paper evidence remain required
-- recent-window challenger replay before promotion
+- recent-window challenger replay before promotion — first bounded milestone
+  implemented through `ares prepare-challenger`; exact unseen-window source and
+  bundle evidence is required and anchored by promotion, while independent
+  forward paper replication remains required
 - probability calibration and threshold stability reports
 - MLflow experiment logging and River-based drift monitors
 - dataset manifests with partition-level hashes

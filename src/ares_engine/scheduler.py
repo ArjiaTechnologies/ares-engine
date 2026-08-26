@@ -16,8 +16,7 @@ from .data.storage import current_generation, market_path, read_market
 from .exceptions import DataQualityError
 from .live import generate_paper_signal
 from .promotion import promote, resolve_champion
-from .search import run_search
-from .training import train_candidate
+from .replay import prepare_replayed_challenger
 
 LOGGER = logging.getLogger(__name__)
 
@@ -101,16 +100,19 @@ def deep_cycle(config_path: Path) -> None:
             generation=generation,
         )
         frame = read_market(source)
-        candidate_config = config
-        if config.scheduler.run_search_on_deep:
-            _, candidate_config = run_search(frame, config)
-        bundle, _ = train_candidate(
+        bundle, _, replay_report, _ = prepare_replayed_challenger(
             frame,
-            candidate_config,
+            config,
             source_path=source,
             repository_root=Path.cwd(),
+            run_search_first=config.scheduler.run_search_on_deep,
         )
-        promote(bundle, candidate_config.storage.artifacts, candidate_config.gates)
+        promote(
+            bundle,
+            config.storage.artifacts,
+            config.gates,
+            replay_report=replay_report,
+        )
 
 
 def run_scheduler(config_path: Path) -> None:

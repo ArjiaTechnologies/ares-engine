@@ -172,6 +172,11 @@ class GateConfig(StrictModel):
     min_total_trades: int = Field(default=20, ge=0)
     require_positive_cost_stress: bool = True
     min_promotion_score_improvement: float = Field(default=0.05, ge=0)
+    require_recent_replay: bool = True
+    recent_replay_bars: int = Field(default=168, ge=50)
+    min_recent_replay_trades: int = Field(default=1, ge=0)
+    max_recent_replay_drawdown: float = Field(default=0.30, gt=0, lt=1)
+    require_positive_recent_replay_stress: bool = True
 
 
 class SearchConfig(StrictModel):

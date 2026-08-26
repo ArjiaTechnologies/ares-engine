@@ -31,6 +31,7 @@ def train_candidate(
     config: AresConfig,
     *,
     source_path: Path | None = None,
+    source_identity_sha256: str | None = None,
     bundle_name: str | None = None,
     repository_root: Path | None = None,
     verbose: int = 0,
@@ -66,6 +67,12 @@ def train_candidate(
             "sha256": sha256_file(source_path),
             "bytes": source_path.stat().st_size,
         }
+    if source_identity_sha256 is not None:
+        if len(source_identity_sha256) != 64 or any(
+            character not in "0123456789abcdef" for character in source_identity_sha256.lower()
+        ):
+            raise ValueError("source_identity_sha256 must be a SHA-256 digest")
+        provenance["research_dataset_identity_sha256"] = source_identity_sha256
 
     bundle = export_bundle(
         model=model,

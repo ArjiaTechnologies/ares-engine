@@ -58,7 +58,7 @@ def test_bundle_tampering_is_detected(tmp_path: Path) -> None:
 
 
 def test_promotion_requires_improvement(tmp_path: Path) -> None:
-    gates = GateConfig(min_promotion_score_improvement=0.1)
+    gates = GateConfig(min_promotion_score_improvement=0.1, require_recent_replay=False)
     first = make_fake_bundle(tmp_path, "first", score=1.0)
     promote(first, tmp_path, gates)
     assert resolve_champion(tmp_path) == first.resolve()
@@ -107,7 +107,11 @@ def test_duplicate_manifest_json_key_is_rejected(tmp_path: Path) -> None:
 
 def test_champion_pointer_anchors_the_promoted_manifest(tmp_path: Path) -> None:
     bundle = make_fake_bundle(tmp_path, "anchored", score=1.0)
-    promote(bundle, tmp_path, GateConfig(min_promotion_score_improvement=0.0))
+    promote(
+        bundle,
+        tmp_path,
+        GateConfig(min_promotion_score_improvement=0.0, require_recent_replay=False),
+    )
     manifest_path = bundle / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["rewritten_after_promotion"] = True
@@ -142,7 +146,11 @@ def test_bundle_metadata_must_match_exported_config() -> None:
 def test_promotion_rejects_non_finite_scores(tmp_path: Path) -> None:
     bundle = make_fake_bundle(tmp_path, "non-finite", score=float("nan"))
     with pytest.raises(BundleIntegrityError, match="finite"):
-        promote(bundle, tmp_path, GateConfig(min_promotion_score_improvement=0.0))
+        promote(
+            bundle,
+            tmp_path,
+            GateConfig(min_promotion_score_improvement=0.0, require_recent_replay=False),
+        )
 
 
 def test_promotion_rejects_bundle_outside_artifacts_root(tmp_path: Path) -> None:
@@ -150,7 +158,11 @@ def test_promotion_rejects_bundle_outside_artifacts_root(tmp_path: Path) -> None
     artifacts.mkdir()
     external = make_fake_bundle(tmp_path / "external", "candidate", score=1.0)
     with pytest.raises(BundleIntegrityError, match="contained"):
-        promote(external, artifacts, GateConfig(min_promotion_score_improvement=0.0))
+        promote(
+            external,
+            artifacts,
+            GateConfig(min_promotion_score_improvement=0.0, require_recent_replay=False),
+        )
 
 
 def test_champion_pointer_cannot_escape_artifacts_root(tmp_path: Path) -> None:
@@ -174,7 +186,11 @@ def test_promotion_lock_fails_closed(tmp_path: Path) -> None:
     bundle = make_fake_bundle(tmp_path, "candidate-locked", score=1.0)
     with FileLock(tmp_path / ".ares-promotion.lock"):
         with pytest.raises(PromotionRejected, match="already running"):
-            promote(bundle, tmp_path, GateConfig(min_promotion_score_improvement=0.0))
+            promote(
+                bundle,
+                tmp_path,
+                GateConfig(min_promotion_score_improvement=0.0, require_recent_replay=False),
+            )
 
 
 @pytest.mark.parametrize(
@@ -189,7 +205,11 @@ def test_malformed_metrics_types_fail_closed(tmp_path: Path, payload, message: s
     bundle = make_fake_bundle(tmp_path, "malformed-metrics", score=1.0)
     rewrite_bundle_payload(bundle, "metrics.json", payload)
     with pytest.raises(BundleIntegrityError, match=message):
-        promote(bundle, tmp_path, GateConfig(min_promotion_score_improvement=0.0))
+        promote(
+            bundle,
+            tmp_path,
+            GateConfig(min_promotion_score_improvement=0.0, require_recent_replay=False),
+        )
 
 
 @pytest.mark.parametrize(
@@ -210,7 +230,7 @@ def test_malformed_champion_pointer_fields_fail_closed(
 
 
 def test_incumbent_that_no_longer_passes_gates_blocks_promotion(tmp_path: Path) -> None:
-    gates = GateConfig(min_promotion_score_improvement=0.0)
+    gates = GateConfig(min_promotion_score_improvement=0.0, require_recent_replay=False)
     incumbent = make_fake_bundle(tmp_path, "incumbent", score=1.0)
     promote(incumbent, tmp_path, gates)
     rewrite_bundle_payload(incumbent, "metrics.json", {"score": 1.0, "passed": False})

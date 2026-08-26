@@ -225,6 +225,15 @@ def verify_bundle(path: Path) -> dict[str, Any]:
     return manifest
 
 
+def read_verified_bundle_json(path: Path, filename: str) -> dict[str, Any]:
+    """Read one manifest-bound JSON payload without deserializing model artifacts."""
+    allowed = {"feature_spec.json", "config.json", "metrics.json", "provenance.json"}
+    if filename not in allowed:
+        raise BundleIntegrityError(f"Unsupported bundle JSON payload: {filename}")
+    verify_bundle(path)
+    return _load_json_object(path / filename, label=filename.removesuffix(".json"))
+
+
 def validate_bundle_metadata(feature_spec: dict[str, Any], config: AresConfig) -> None:
     columns = feature_spec.get("columns")
     if (

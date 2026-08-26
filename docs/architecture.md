@@ -17,7 +17,8 @@ flowchart LR
     M --> B["Delayed cost-aware backtest"]
     B --> R["Hard gates including solvency"]
     R --> E["Verified immutable bundle"]
-    E --> C["Locked champion promotion"]
+    E --> Y["Exact unseen recent-window replay"]
+    Y --> C["Replay-anchored locked promotion"]
     C --> I["Fail-closed paper inference"]
 ```
 
@@ -36,7 +37,8 @@ flowchart LR
 | Search | `search.py`; material data/config identity isolates Optuna studies, and only finite, solvent, gate-passing trials are eligible. |
 | Backtest | `backtest.py`; one-bar signal delay, position-change costs, explicit turnover/trades, terminal insolvency, and finite metrics. |
 | Bundles | `bundles.py`; exact seven-file payload, size/hash/type/link/path checks, metadata/runtime shape validation, and private re-hashed load snapshot. |
-| Promotion | `promotion.py`; process lock, re-verification, finite metrics and gates, artifacts-root containment, manifest-anchored atomic champion pointer. |
+| Challenger replay | `replay.py`; reserves the latest configured bars before search/fitting, verifies bundle/source identity, enforces training-window non-overlap, and produces normal/stress-cost gate evidence. |
+| Promotion | `promotion.py`; process lock, bundle/report re-verification, finite metrics and gates, artifacts-root containment, and manifest-plus-replay-anchored atomic champion pointer. |
 | Paper | `live.py`; captures one generation, rebuilds exact feature order, blocks open/stale/divergent/non-finite/mismatched input, writes read-only signals under a process lock. |
 | Scheduling | `scheduler.py`; one fail-fast process lock serializes ingestion/training/promotion; each operation captures a generation once. |
 | CLI | `cli.py`; installed-wheel-safe config resolution and explicit research, evidence, lifecycle, and scheduler commands. |

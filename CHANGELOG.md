@@ -2,6 +2,10 @@
 
 All notable changes to ARES Engine are documented here.
 
+## Unreleased
+
+- Added a canonical recent-window challenger replay gate. Search, scaling, fitting, and early stopping exclude the configured latest window; promotion requires an exact-source, exact-bundle, non-overlapping normal/stress-cost report and anchors its hash in the champion pointer.
+
 ## 0.1.0 — 2026-07-28
 
 - Published the first controlled public source release of the ETH research and paper-inference engine.

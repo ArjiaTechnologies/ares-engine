@@ -25,6 +25,7 @@ from .models import backend_name
 from .promotion import promote as promote_bundle
 from .promotion import resolve_champion
 from .public_audit import run_public_ingestion_audit, validate_public_ingestion_report
+from .replay import prepare_replayed_challenger
 from .scheduler import deep_cycle, quick_cycle, run_scheduler
 from .search import run_search
 from .synthetic import make_synthetic_ohlcv
@@ -294,14 +295,49 @@ def train(
     _json({"bundle": bundle, "score": metrics["score"], "passed": metrics["passed"]})
 
 
+@app.command("prepare-challenger")
+def prepare_challenger(
+    config_path: Path = typer.Option(Path("configs/default.yaml"), "--config"),
+    bundle_name: str | None = typer.Option(None, "--name"),
+    skip_search: bool = typer.Option(False, "--skip-search"),
+    verbose: int = typer.Option(0, min=0, max=2),
+) -> None:
+    """Reserve recent history, search/train earlier bars, and write replay evidence."""
+    config, source, frame = _primary_frame(config_path)
+    bundle, metrics, replay_report, replay = prepare_replayed_challenger(
+        frame,
+        config,
+        source_path=source,
+        repository_root=Path.cwd(),
+        bundle_name=bundle_name,
+        run_search_first=not skip_search,
+        verbose=verbose,
+    )
+    _json(
+        {
+            "bundle": bundle,
+            "score": metrics["score"],
+            "validation_passed": metrics["passed"],
+            "replay_report": replay_report,
+            "replay_passed": replay["passed"],
+        }
+    )
+
+
 @app.command()
 def promote(
     challenger: Path = typer.Argument(..., exists=True, file_okay=False),
     config_path: Path = typer.Option(Path("configs/default.yaml"), "--config"),
+    replay_report: Path = typer.Option(..., "--replay-report", exists=True, dir_okay=False),
 ) -> None:
-    """Promote a challenger only when it passes gates and beats the incumbent."""
+    """Promote only with exact unseen-window replay evidence and score improvement."""
     config = load_config(_resolve_config(config_path))
-    decision = promote_bundle(challenger, config.storage.artifacts, config.gates)
+    decision = promote_bundle(
+        challenger,
+        config.storage.artifacts,
+        config.gates,
+        replay_report=replay_report,
+    )
     _json(decision.to_dict())
 
 
@@ -396,11 +432,12 @@ def verify_offline(
 ) -> None:
     """Exercise quality, ML, export, promotion, reload, and paper inference on synthetic data."""
     config = load_config(_resolve_config(config_path))
-    required_bars = minimum_required_bars(config)
+    required_bars = minimum_required_bars(config) + config.gates.recent_replay_bars
     if bars < required_bars:
         raise typer.BadParameter(
-            f"--bars {bars} cannot satisfy the configured folds: feature warm-up, lookback, "
-            f"min_train_bars, purge, and validation_bars need at least {required_bars} rows"
+            f"--bars {bars} cannot satisfy the configured folds and reserved replay window: "
+            "feature warm-up, lookback, min_train_bars, purge, validation_bars, and "
+            f"recent_replay_bars need at least {required_bars} rows"
         )
     run_name = datetime.now(tz=UTC).strftime("run-%Y%m%dT%H%M%SZ")
     run_root = output_dir / run_name
@@ -437,14 +474,19 @@ def verify_offline(
     if not (primary_report.passed and secondary_report.passed and cross_report.passed):
         raise typer.BadParameter("Synthetic verification data unexpectedly failed quality gates")
 
-    bundle, metrics = train_candidate(
+    run_root.mkdir(parents=True, exist_ok=True)
+    source_path = run_root / "synthetic-primary.parquet"
+    primary.to_parquet(source_path, index=False)
+    bundle, metrics, replay_report, replay = prepare_replayed_challenger(
         primary,
         config,
+        source_path=source_path,
         bundle_name="ares_smoke_verified",
         repository_root=Path.cwd(),
+        run_search_first=False,
         verbose=0,
     )
-    decision = promote_bundle(bundle, run_root, config.gates)
+    decision = promote_bundle(bundle, run_root, config.gates, replay_report=replay_report)
     as_of = primary["timestamp"].max() + timedelta(
         seconds=timeframe_to_seconds(config.data.timeframe)
     )
@@ -469,6 +511,7 @@ def verify_offline(
             "cross_venue": cross_report.to_dict(),
         },
         "validation": metrics,
+        "recent_replay": replay,
         "promotion": decision.to_dict(),
         "paper_signal": signal.to_dict(),
     }
