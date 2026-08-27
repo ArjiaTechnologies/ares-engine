@@ -1,0 +1,244 @@
+name: Dependency lock candidate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/dependency-lock-candidate.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-lock-candidate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  candidate:
+    name: Regenerate and validate candidate lock
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Bind candidate to the exact checked-out source
+        run: |
+          source_sha="$(git rev-parse HEAD)"
+          test "$source_sha" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          echo "SOURCE_SHA=$source_sha" >> "$GITHUB_ENV"
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          python-version: "3.11"
+          enable-cache: true
+
+      - name: Apply reviewed dependency metadata changes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("pyproject.toml")
+          text = path.read_text(encoding="utf-8")
+          old_mlflow = '  "mlflow>=2.17,<4",'
+          new_mlflow = '  "mlflow-skinny>=3.15.1,<4",'
+          old_twine = '  "twine>=6,<7",'
+          new_twine = '  "twine>=6,<8",'
+          if text.count(old_mlflow) != 1:
+              raise SystemExit("expected exactly one reviewed mlflow>=2.17,<4 constraint")
+          if text.count(old_twine) != 1:
+              raise SystemExit("expected exactly one reviewed twine>=6,<7 constraint")
+          if "[tool.uv]" in text or "override-dependencies" in text:
+              raise SystemExit("unexpected pre-existing uv dependency override")
+          if "mlflow-skinny" in text:
+              raise SystemExit("unexpected pre-existing mlflow-skinny constraint")
+
+          path.write_text(
+              text.replace(old_mlflow, new_mlflow).replace(old_twine, new_twine),
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Regenerate only targeted lock packages
+        run: uv lock --upgrade-package cryptography --upgrade-package gitpython --upgrade-package mlflow-skinny --upgrade-package sqlparse --upgrade-package twine
+
+      - name: Verify resolved candidate versions
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          import tomllib
+
+          data = tomllib.loads(Path("uv.lock").read_text(encoding="utf-8"))
+          found = {}
+          for package in data.get("package", []):
+              name = package.get("name")
+              if name in {"cryptography", "gitpython", "mlflow", "mlflow-skinny", "sqlparse", "twine"}:
+                  found.setdefault(name, []).append(package.get("version", ""))
+
+          required = {"cryptography", "gitpython", "mlflow-skinny", "sqlparse", "twine"}
+          missing = sorted(required - found.keys())
+          if missing:
+              raise SystemExit(f"missing target packages in uv.lock: {missing}; found={found}")
+          if found.get("mlflow"):
+              raise SystemExit(f"full mlflow distribution remains in uv.lock: {found['mlflow']}")
+
+          def numeric(version: str) -> tuple[int, ...]:
+              parts = re.findall(r"\d+", version)
+              return tuple(int(part) for part in parts[:3])
+
+          if max(numeric(version) for version in found["cryptography"]) < (50, 0, 0):
+              raise SystemExit("candidate lock did not resolve Cryptography >=50.0.0")
+          if max(numeric(version) for version in found["gitpython"]) < (3, 1, 58):
+              raise SystemExit("candidate lock did not resolve GitPython >=3.1.58")
+          if max(numeric(version) for version in found["mlflow-skinny"]) < (3, 15, 1):
+              raise SystemExit("candidate lock did not resolve mlflow-skinny >=3.15.1")
+          if max(numeric(version) for version in found["sqlparse"]) < (0, 6, 0):
+              raise SystemExit("candidate lock did not resolve SQLParse >=0.6.0")
+          if max(numeric(version) for version in found["twine"]) < (7, 0, 0):
+              raise SystemExit("candidate lock did not resolve Twine >=7.0.0")
+
+          print("cryptography=" + ",".join(found["cryptography"]))
+          print("gitpython=" + ",".join(found["gitpython"]))
+          print("mlflow-skinny=" + ",".join(found["mlflow-skinny"]))
+          print("sqlparse=" + ",".join(found["sqlparse"]))
+          print("twine=" + ",".join(found["twine"]))
+          PY
+
+      - name: Sync candidate environment
+        run: uv sync --frozen --extra dev --extra tracking
+
+      - name: Validate installed dependency metadata and tracking smoke
+        run: |
+          uv run --extra tracking python - <<'PY'
+          from importlib.metadata import PackageNotFoundError, version
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+
+          import cryptography
+          import mlflow
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+          if tuple(int(part) for part in cryptography.__version__.split(".")[:3]) < (50, 0, 0):
+              raise SystemExit(f"unexpected Cryptography version: {cryptography.__version__}")
+          skinny_version = version("mlflow-skinny")
+          if tuple(int(part) for part in skinny_version.split(".")[:3]) < (3, 15, 1):
+              raise SystemExit(f"unexpected mlflow-skinny version: {skinny_version}")
+          if mlflow.__version__ != skinny_version:
+              raise SystemExit(
+                  f"mlflow import version {mlflow.__version__} does not match mlflow-skinny {skinny_version}"
+              )
+          try:
+              full_version = version("mlflow")
+          except PackageNotFoundError:
+              full_version = None
+          if full_version is not None:
+              raise SystemExit(f"unexpected full mlflow distribution installed: {full_version}")
+
+          key = AESGCM.generate_key(bit_length=128)
+          cipher = AESGCM(key)
+          nonce = bytes(range(12))
+          plaintext = b"ares-mlflow-cryptography-compatibility"
+          if cipher.decrypt(nonce, cipher.encrypt(nonce, plaintext, None), None) != plaintext:
+              raise SystemExit("Cryptography AES-GCM round trip failed")
+
+          with TemporaryDirectory() as directory:
+              database = Path(directory, "mlflow.db").as_posix()
+              mlflow.set_tracking_uri(f"sqlite:///{database}")
+              mlflow.set_experiment("ares-compatibility-smoke")
+              with mlflow.start_run():
+                  mlflow.log_param("cryptography", cryptography.__version__)
+                  mlflow.log_metric("smoke", 1.0)
+          PY
+          uv pip check
+
+      - name: Run focused non-ML quality checks
+        run: |
+          uv run python -m compileall -q src tests
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run mypy --strict src
+          uv run pytest -m "not ml"
+
+      - name: Build and validate distributions
+        run: |
+          uv build
+          uv run twine check dist/*
+          uv venv /tmp/ares-wheel-env
+          uv pip install --python /tmp/ares-wheel-env/bin/python dist/*.whl
+          cd /tmp
+          /tmp/ares-wheel-env/bin/ares version
+          /tmp/ares-wheel-env/bin/ares doctor
+          /tmp/ares-wheel-env/bin/ares demo --bars 500
+
+      - name: Enforce cryptography audit fixed floor
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          import tomllib
+
+          data = tomllib.loads(Path("uv.lock").read_text(encoding="utf-8"))
+          versions = [
+              package.get("version", "")
+              for package in data.get("package", [])
+              if package.get("name") == "cryptography"
+          ]
+
+          def numeric(version: str) -> tuple[int, ...]:
+              return tuple(int(part) for part in re.findall(r"\d+", version)[:3])
+
+          if not versions or max(numeric(version) for version in versions) < (50, 0, 0):
+              raise SystemExit(
+                  "candidate lock did not resolve cryptography to the audit fixed floor >=50.0.0: "
+                  + ", ".join(versions)
+              )
+          PY
+
+      - name: Audit candidate dependencies
+        run: uv run --extra tracking pip-audit
+
+      - name: Write review artifacts
+        if: ${{ always() }}
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          import tomllib
+
+          data = tomllib.loads(Path("uv.lock").read_text(encoding="utf-8"))
+          versions = {}
+          for package in data.get("package", []):
+              name = package.get("name")
+              if name in {"cryptography", "gitpython", "mlflow", "mlflow-skinny", "sqlparse", "twine"}:
+                  versions.setdefault(name, []).append(package.get("version", ""))
+
+          lines = [
+              "ARES dependency lock candidate",
+              f"source_sha={os.environ.get('SOURCE_SHA', '')}",
+              "cryptography=" + ",".join(versions.get("cryptography", [])),
+              "gitpython=" + ",".join(versions.get("gitpython", [])),
+              "mlflow-full=" + ",".join(versions.get("mlflow", [])),
+              "mlflow-skinny=" + ",".join(versions.get("mlflow-skinny", [])),
+              "sqlparse=" + ",".join(versions.get("sqlparse", [])),
+              "twine=" + ",".join(versions.get("twine", [])),
+              "intent=review artifact only; no repository write or merge performed",
+          ]
+          Path("dependency-candidate-summary.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+          PY
+          git diff -- pyproject.toml uv.lock > dependency-candidate.diff
+
+      - name: Upload candidate for human/worker review
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dependency-lock-candidate-${{ github.run_id }}
+          path: |
+            pyproject.toml
+            uv.lock
+            dependency-candidate.diff
+            dependency-candidate-summary.txt
+          if-no-files-found: error
+          retention-days: 7
