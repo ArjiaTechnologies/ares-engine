@@ -16,7 +16,10 @@
   implemented through `ares prepare-challenger`; exact unseen-window source and
   bundle evidence is required and anchored by promotion, while independent
   forward paper replication remains required
-- probability calibration and threshold stability reports
+- probability calibration and threshold stability reports — first bounded
+  diagnostic milestone implemented in walk-forward validation; out-of-fold
+  reliability and nearby decision-threshold sensitivity are recorded without
+  silently calibrating the model or weakening promotion gates
 - MLflow experiment logging and River-based drift monitors
 - dataset manifests with partition-level hashes
 - richer cost, spread, and latency sensitivity surfaces

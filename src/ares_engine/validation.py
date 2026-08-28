@@ -10,6 +10,7 @@ import pandas as pd
 from sklearn.metrics import roc_auc_score
 
 from .backtest import BacktestMetrics, run_backtest
+from .calibration import probability_calibration_report, threshold_stability_report
 from .config import AresConfig
 from .data.quality import validate_ohlcv
 from .dataset import (
@@ -52,6 +53,8 @@ class ValidationSummary:
     score: float
     feature_columns: list[str]
     sample_count: int
+    probability_calibration: dict[str, Any]
+    threshold_stability: dict[str, Any]
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -62,6 +65,8 @@ class ValidationSummary:
             "score": self.score,
             "feature_columns": self.feature_columns,
             "sample_count": self.sample_count,
+            "probability_calibration": self.probability_calibration,
+            "threshold_stability": self.threshold_stability,
         }
 
 
@@ -198,6 +203,9 @@ def run_walk_forward(
         )
 
     folds: list[FoldMetrics] = []
+    calibration_labels: list[np.ndarray] = []
+    calibration_probabilities: list[np.ndarray] = []
+    threshold_folds: list[tuple[pd.DatetimeIndex, np.ndarray, np.ndarray]] = []
     directional = dataset.directional_mask
     y_binary = dataset.y_binary
 
@@ -237,9 +245,18 @@ def run_walk_forward(
             verbose=verbose,
         )
         probabilities = predict_probabilities(model, X_validation_all)
+        threshold_folds.append(
+            (
+                dataset.timestamps[fold.validation_indices],
+                dataset.bar_returns[fold.validation_indices],
+                probabilities,
+            )
+        )
         auc = None
         if len(validation_directional):
             validation_positions = np.searchsorted(fold.validation_indices, validation_directional)
+            calibration_labels.append(y_binary[validation_directional])
+            calibration_probabilities.append(probabilities[validation_positions])
             auc = _auc_or_none(
                 y_binary[validation_directional],
                 probabilities[validation_positions],
@@ -276,6 +293,8 @@ def run_walk_forward(
 
     aggregate = _aggregate(folds)
     gates = evaluate_gates(aggregate, config)
+    if not calibration_labels:
+        raise ValueError("Walk-forward validation produced no directional calibration samples")
     return ValidationSummary(
         folds=folds,
         aggregate=aggregate,
@@ -284,4 +303,10 @@ def run_walk_forward(
         score=robust_score(aggregate),
         feature_columns=dataset.feature_columns,
         sample_count=len(dataset.X),
+        probability_calibration=probability_calibration_report(
+            np.concatenate(calibration_labels), np.concatenate(calibration_probabilities)
+        ),
+        threshold_stability=threshold_stability_report(
+            threshold_folds, config.backtest, timeframe=config.data.timeframe
+        ),
     )
