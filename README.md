@@ -55,6 +55,7 @@ See [DISCLAIMER.md](DISCLAIMER.md), [SECURITY.md](SECURITY.md), and [docs/resear
 - Optuna study isolation over the full normalized OHLCV payload and every material research configuration.
 - An explicit one-time, post-search final holdout with a maximum-horizon embargo, frozen configurations, independent research-only early stopping, immutable commitment receipts, and reproducible cash/buy-and-hold/causal-momentum baselines.
 - A promotion-time recent-window replay that reserves the latest configured bars before search or fitting, binds the frozen challenger and source bytes into an immutable report, reruns delayed normal/stress-cost backtests, and anchors passing evidence in the champion pointer.
+- Out-of-fold probability calibration and nearby threshold-stability diagnostics embedded in candidate evidence. These reports expose reliability and threshold fragility; they do not recalibrate a model, prove profitability, or bypass promotion gates.
 - Delayed long/flat/short backtesting with fees, slippage, doubled-cost stress, drawdown, turnover, exposure, hit rate, trade counts, and bankruptcy reporting.
 - Immutable seven-file bundles, hostile-file checks, runtime shape validation, manifest-anchored promotion, and fail-closed paper inference.
 - Process locks for ingestion, scheduler cycles, promotion, and paper-signal logs.

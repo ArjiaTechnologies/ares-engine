@@ -16,6 +16,12 @@ Publish only a complete immutable multi-venue generation. Save generation and ev
 
 Use chronological expanding folds, purge at least the label horizon, keep sequences inside allowed boundaries, and fit scalers only on training rows. Features use current/past bars only. Labels may use the declared future horizon only. Execute a signal one bar after its probability. Mutation of future data must not change earlier features or training transforms.
 
+Walk-forward evidence also records reliability bins, Brier score, calibration error,
+and the behavior of the untouched out-of-fold probabilities under nearby symmetric
+long/short threshold perturbations. These are diagnostics, not fitted calibration
+or hard gates; strong-looking values remain subject to the locked holdout, recent
+replay, cost, drawdown, solvency, and independent forward-paper requirements.
+
 ## 4. Search honestly
 
 Never tune historical fees downward. Record failed, pruned, non-finite, bankrupt, and gate-failed trials; none may win. Do not call search-fold scores a final holdout. Reproduce a winning trial from its stored metadata before export.
