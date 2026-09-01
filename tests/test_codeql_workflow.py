@@ -14,5 +14,5 @@ def test_codeql_init_and_analyze_use_the_same_immutable_revision() -> None:
         r"uses:\s+github/codeql-action/(?:init|analyze)@([0-9a-f]{40})", workflow
     )
 
-    expected_revision = "ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd"  # CodeQL v4.37.7
+    expected_revision = "cdf488f595d80d6e07e03d4674febd5ab45fa938"  # CodeQL v4.37.9
     assert revisions == [expected_revision, expected_revision]
