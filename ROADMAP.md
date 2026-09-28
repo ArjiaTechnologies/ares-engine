@@ -17,9 +17,10 @@
   bundle evidence is required and anchored by promotion, while independent
   forward paper replication remains required
 - probability calibration and threshold stability reports — first bounded
-  diagnostic milestone implemented in walk-forward validation; out-of-fold
-  reliability and nearby decision-threshold sensitivity are recorded without
-  silently calibrating the model or weakening promotion gates
+  diagnostic milestone implemented in walk-forward validation; training-loss-only
+  fitting, per-partition provenance, training-prior and cost-consistent baselines,
+  explicit partial sweeps and overlapping-sample limits. Research-fold evidence
+  does not fit a calibrator, select thresholds or replace independent evaluation
 - MLflow experiment logging and River-based drift monitors
 - dataset manifests with partition-level hashes
 - richer cost, spread, and latency sensitivity surfaces

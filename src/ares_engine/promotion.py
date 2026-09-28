@@ -11,6 +11,7 @@ from typing import Any
 from filelock import FileLock, Timeout
 
 from .bundles import verify_bundle
+from .calibration import WALK_FORWARD_PROTOCOL
 from .config import GateConfig
 from .exceptions import BundleIntegrityError, PromotionRejected
 from .replay import validate_replay_report
@@ -44,6 +45,15 @@ def _metrics(bundle: Path) -> dict[str, Any]:
     if not math.isfinite(score):
         raise BundleIntegrityError("Bundle metrics `score` field must be finite")
     return payload
+
+
+def _fit_protocol(metrics: dict[str, Any]) -> str:
+    if "diagnostic_provenance" not in metrics:
+        return "legacy_outer_validation_auc"
+    provenance = metrics["diagnostic_provenance"]
+    if not isinstance(provenance, dict) or provenance.get("fit_protocol") != WALK_FORWARD_PROTOCOL:
+        raise BundleIntegrityError("Bundle metrics have an unsupported fitting protocol")
+    return WALK_FORWARD_PROTOCOL
 
 
 def champion_pointer(artifacts_root: Path) -> Path:
@@ -138,6 +148,7 @@ def decide_promotion(
 ) -> PromotionDecision:
     verify_bundle(challenger)
     challenger_metrics = _metrics(challenger)
+    challenger_protocol = _fit_protocol(challenger_metrics)
     challenger_score = float(challenger_metrics["score"])
     if challenger_metrics["passed"] is not True:
         return PromotionDecision(
@@ -161,6 +172,14 @@ def decide_promotion(
     if champion_metrics["passed"] is not True:
         raise BundleIntegrityError("Incumbent champion metrics no longer show passed gates")
     champion_score = float(champion_metrics["score"])
+    if challenger_protocol != _fit_protocol(champion_metrics):
+        return PromotionDecision(
+            approved=False,
+            reason="fitting protocol mismatch; scores require comparable re-evaluation",
+            challenger_score=challenger_score,
+            champion_score=champion_score,
+            improvement=None,
+        )
     improvement = challenger_score - champion_score
     approved = improvement >= gates.min_promotion_score_improvement
     return PromotionDecision(

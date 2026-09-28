@@ -10,7 +10,13 @@ import pandas as pd
 from sklearn.metrics import roc_auc_score
 
 from .backtest import BacktestMetrics, run_backtest
-from .calibration import probability_calibration_report, threshold_stability_report
+from .calibration import (
+    WALK_FORWARD_PROTOCOL,
+    array_digest,
+    evidence_digest,
+    probability_calibration_report,
+    threshold_stability_report,
+)
 from .config import AresConfig
 from .data.quality import validate_ohlcv
 from .dataset import (
@@ -55,6 +61,7 @@ class ValidationSummary:
     sample_count: int
     probability_calibration: dict[str, Any]
     threshold_stability: dict[str, Any]
+    diagnostic_provenance: dict[str, Any]
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -67,6 +74,7 @@ class ValidationSummary:
             "sample_count": self.sample_count,
             "probability_calibration": self.probability_calibration,
             "threshold_stability": self.threshold_stability,
+            "diagnostic_provenance": self.diagnostic_provenance,
         }
 
 
@@ -174,6 +182,10 @@ def run_walk_forward(
     *,
     verbose: int = 0,
 ) -> ValidationSummary:
+    # Revalidate mutable configuration before partitioning or model construction.
+    config = AresConfig.model_validate(config.model_dump(mode="python"))
+    # Hash and evaluate the same owned snapshot, even during a long model fit.
+    ohlcv = ohlcv.copy(deep=True)
     data_report = validate_ohlcv(
         ohlcv,
         config.data.timeframe,
@@ -205,11 +217,18 @@ def run_walk_forward(
     folds: list[FoldMetrics] = []
     calibration_labels: list[np.ndarray] = []
     calibration_probabilities: list[np.ndarray] = []
+    calibration_references: list[np.ndarray] = []
+    calibration_indices: list[np.ndarray] = []
+    partition_evidence: list[dict[str, Any]] = []
     threshold_folds: list[tuple[pd.DatetimeIndex, np.ndarray, np.ndarray]] = []
     directional = dataset.directional_mask
     y_binary = dataset.y_binary
 
     for fold in splitter.split(len(dataset.X)):
+        validation_rows = dataset.source_rows[fold.validation_indices]
+        train_rows = dataset.source_rows[fold.train_indices]
+        if int(train_rows[-1]) + config.labels.horizon_bars >= int(validation_rows[0]):
+            raise ValueError("training label horizon overlaps evaluation partition")
         train_directional = fold.train_indices[directional[fold.train_indices]]
         validation_directional = fold.validation_indices[directional[fold.validation_indices]]
         if len(train_directional) < 50 or len(np.unique(y_binary[train_directional])) < 2:
@@ -220,31 +239,49 @@ def run_walk_forward(
         scaler = fit_scaler(dataset.X[fold.train_indices])
         X_train_directional = transform_sequences(scaler, dataset.X[train_directional])
         X_validation_all = transform_sequences(scaler, dataset.X[fold.validation_indices])
-        X_validation_directional = (
-            transform_sequences(scaler, dataset.X[validation_directional])
-            if len(validation_directional)
-            else None
-        )
         y_train = y_binary[train_directional].astype("float32")
-        y_validation = (
-            y_binary[validation_directional].astype("float32")
-            if len(validation_directional)
-            else None
-        )
 
         model = build_model(
             dataset.X.shape[1:], config.model, seed=config.project.seed + fold.number
         )
-        fit_model(
-            model,
-            X_train_directional,
-            y_train,
-            config.model,
-            X_validation=X_validation_directional,
-            y_validation=y_validation,
-            verbose=verbose,
+        try:
+            # fit_model uses training loss when no validation_data is supplied.
+            # Outer research outcomes must never select this fold's weights.
+            fit_model(model, X_train_directional, y_train, config.model, verbose=verbose)
+            probabilities = predict_probabilities(model, X_validation_all)
+        finally:
+            clear_session()
+        train_prior = float(y_train.mean())
+        partition_evidence.append(
+            {
+                "fold": fold.number,
+                "train_sample_count": len(fold.train_indices),
+                "train_directional_count": len(train_directional),
+                "evaluation_sample_count": len(fold.validation_indices),
+                "evaluation_directional_count": len(validation_directional),
+                "evaluation_neutral_count": int(
+                    (dataset.labels[fold.validation_indices] == 0).sum()
+                ),
+                "evaluation_missing_label_count": int(
+                    (~np.isfinite(dataset.labels[fold.validation_indices])).sum()
+                ),
+                "training_positive_rate": train_prior,
+                "last_training_label_source_row": int(train_rows[-1]) + config.labels.horizon_bars,
+                "first_evaluation_source_row": int(validation_rows[0]),
+                "last_requested_evaluation_label_source_row": int(validation_rows[-1])
+                + config.labels.horizon_bars,
+                "train_source_rows_sha256": evidence_digest(train_rows.tolist()),
+                "evaluation_source_rows_sha256": evidence_digest(validation_rows.tolist()),
+                "train_features_sha256": array_digest(dataset.X[fold.train_indices]),
+                "training_labels_sha256": array_digest(y_train),
+                "evaluation_features_sha256": array_digest(dataset.X[fold.validation_indices]),
+                "evaluation_labels_sha256": array_digest(dataset.labels[fold.validation_indices]),
+                "directional_source_rows_sha256": evidence_digest(
+                    dataset.source_rows[validation_directional].tolist()
+                ),
+                "predictions_sha256": array_digest(probabilities),
+            }
         )
-        probabilities = predict_probabilities(model, X_validation_all)
         threshold_folds.append(
             (
                 dataset.timestamps[fold.validation_indices],
@@ -257,6 +294,8 @@ def run_walk_forward(
             validation_positions = np.searchsorted(fold.validation_indices, validation_directional)
             calibration_labels.append(y_binary[validation_directional])
             calibration_probabilities.append(probabilities[validation_positions])
+            calibration_references.append(np.full(len(validation_directional), train_prior))
+            calibration_indices.append(validation_directional)
             auc = _auc_or_none(
                 y_binary[validation_directional],
                 probabilities[validation_positions],
@@ -289,12 +328,50 @@ def run_walk_forward(
                 stress_backtest=stress.metrics,
             )
         )
-        clear_session()
 
     aggregate = _aggregate(folds)
     gates = evaluate_gates(aggregate, config)
     if not calibration_labels:
         raise ValueError("Walk-forward validation produced no directional calibration samples")
+    calibration = probability_calibration_report(
+        np.concatenate(calibration_labels),
+        np.concatenate(calibration_probabilities),
+        reference_probabilities=np.concatenate(calibration_references),
+    )
+    unique_samples = len(np.unique(np.concatenate(calibration_indices)))
+    calibration.update(
+        population="directional_labels_only",
+        unique_sample_count=unique_samples,
+        repeated_observation_count=calibration["sample_count"] - unique_samples,
+        aggregation="pooled_fold_observations_repeats_counted",
+    )
+    source_columns = ["open", "high", "low", "close", "volume"]
+    provenance = {
+        "schema": "ares-diagnostic-provenance-v1",
+        "fit_protocol": WALK_FORWARD_PROTOCOL,
+        "early_stopping_monitor": "training_loss",
+        "evaluation_used_for_fit": False,
+        "scope": "research_only_optuna_can_select_on_these_folds",
+        "configuration_sha256": evidence_digest(config.model_dump(mode="json")),
+        "source_columns": ["timestamp", *source_columns],
+        "source_sha256": evidence_digest(
+            {
+                "timestamps_ns": [
+                    int(value.value) for value in pd.to_datetime(ohlcv["timestamp"], utc=True)
+                ],
+                "ohlcv_sha256": array_digest(ohlcv[source_columns].to_numpy(dtype="float64")),
+            }
+        ),
+        "label_horizon_bars": config.labels.horizon_bars,
+        "purge_bars": config.validation.purge_bars,
+        "partitions": partition_evidence,
+        "limitations": [
+            "not_independent_forward_evidence",
+            "no_calibrator_fitted",
+            "no_threshold_selected",
+            "overlapping_folds_are_not_independent",
+        ],
+    }
     return ValidationSummary(
         folds=folds,
         aggregate=aggregate,
@@ -303,10 +380,12 @@ def run_walk_forward(
         score=robust_score(aggregate),
         feature_columns=dataset.feature_columns,
         sample_count=len(dataset.X),
-        probability_calibration=probability_calibration_report(
-            np.concatenate(calibration_labels), np.concatenate(calibration_probabilities)
-        ),
+        probability_calibration=calibration,
         threshold_stability=threshold_stability_report(
-            threshold_folds, config.backtest, timeframe=config.data.timeframe
+            threshold_folds,
+            config.backtest,
+            timeframe=config.data.timeframe,
+            stress_cost_multiplier=config.validation.stress_cost_multiplier,
         ),
+        diagnostic_provenance=provenance,
     )
