@@ -4,6 +4,8 @@ All notable changes to ARES Engine are documented here.
 
 ## Unreleased
 
+- Added source-bound walk-forward probability-calibration and nearby threshold-stability diagnostics, with per-fold training-prior and cost-consistent long/short/cash comparisons. Infeasible perturbations are explicitly skipped without rejecting a valid configured threshold; non-finite evidence fails closed.
+- Changed walk-forward early stopping to training loss so evaluation labels cannot select weights. Study identity v3 isolates this fitting protocol from historical trials. Reports disclose overlapping samples, single-class limits and partition/source/prediction hashes; promotion gates and locked-holdout/replay boundaries remain unchanged.
 - Added a canonical recent-window challenger replay gate. Search, scaling, fitting, and early stopping exclude the configured latest window; promotion requires an exact-source, exact-bundle, non-overlapping normal/stress-cost report and anchors its hash in the champion pointer.
 
 ## 0.1.0 — 2026-07-28

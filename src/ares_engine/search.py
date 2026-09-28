@@ -11,12 +11,13 @@ from typing import Literal, cast
 import optuna
 import pandas as pd
 
+from .calibration import WALK_FORWARD_PROTOCOL
 from .config import AresConfig, dump_config
 from .exceptions import AresError
 from .utils import atomic_write_json
 from .validation import run_walk_forward
 
-STUDY_IDENTITY_SCHEMA = "ares-study-identity-v2"
+STUDY_IDENTITY_SCHEMA = "ares-study-identity-v3"
 SEARCH_SPACE = {
     "label_method": ["k_ahead", "triple_barrier"],
     "horizon_bars": [3, 6, 12, 24],
@@ -124,6 +125,7 @@ def _data_fingerprint(ohlcv: pd.DataFrame, base_config: AresConfig) -> str:
     payload = json.dumps(
         {
             "schema": STUDY_IDENTITY_SCHEMA,
+            "walk_forward_protocol": WALK_FORWARD_PROTOCOL,
             "full_normalized_ohlcv_sha256": content_hash,
             "configuration": config_identity,
         },
