@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-import os
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from datetime import datetime
@@ -12,14 +10,14 @@ from typing import Any, TypeAlias
 
 import numpy as np
 import pandas as pd
-from filelock import FileLock, Timeout
 
 from .bundles import load_bundle
 from .data.quality import QualityReport, validate_cross_venue, validate_ohlcv
 from .exceptions import AresError, DataQualityError
 from .features import build_features
 from .models import predict_probabilities
-from .utils import sha256_file, timeframe_to_seconds, utc_now
+from .paper_log import PaperRecordingReceipt, evidence_digest, record_paper_signal, utc_timestamp
+from .utils import timeframe_to_seconds, utc_now
 
 SecondaryInput: TypeAlias = pd.DataFrame | Mapping[str, pd.DataFrame] | None
 
@@ -36,9 +34,32 @@ class PaperSignal:
     cross_venue_latest_bps: dict[str, float]
     staleness_bars: float
     secondary_staleness_bars: dict[str, float]
+    recording: PaperRecordingReceipt | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+def _frame_digest(frame: pd.DataFrame) -> str:
+    """Identity of normalized supplied values, not an original data-file hash."""
+    columns = [
+        "timestamp",
+        "exchange",
+        "symbol",
+        "timeframe",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+    ]
+    normalized = frame[columns].copy()
+    normalized["timestamp"] = [utc_timestamp(value) for value in normalized["timestamp"]]
+    for column in ("exchange", "symbol", "timeframe"):
+        normalized[column] = normalized[column].astype(str)
+    for column in ("open", "high", "low", "close", "volume"):
+        normalized[column] = normalized[column].astype("float64")
+    return evidence_digest({"columns": columns, "rows": normalized.values.tolist()})
 
 
 def _report_failures(report: QualityReport) -> list[str]:
@@ -112,6 +133,16 @@ def generate_paper_signal(
     This function fails closed. A stale, malformed, divergent, mismatched, or missing validation feed
     raises ``DataQualityError`` and produces no signal log entry.
     """
+    # Own the inputs before validation or inference. Callers must not mutate a
+    # frame during the copy itself; pandas is not a cross-thread snapshot API.
+    primary_ohlcv = primary_ohlcv.copy(deep=True)
+    if isinstance(secondary_ohlcv, pd.DataFrame):
+        secondary_ohlcv = secondary_ohlcv.copy(deep=True)
+    elif isinstance(secondary_ohlcv, Mapping):
+        secondary_ohlcv = {
+            name: frame.copy(deep=True) if isinstance(frame, pd.DataFrame) else frame
+            for name, frame in secondary_ohlcv.items()
+        }
     bundle = load_bundle(bundle_path)
     config = bundle.config
     reference = as_of or utc_now()
@@ -216,10 +247,12 @@ def generate_paper_signal(
             "Latest inference window contains incomplete or non-finite features; refusing to use "
             "an older row"
         )
+    feature_hash = evidence_digest({"columns": expected_columns, "rows": window.tolist()})
     scaled_2d = bundle.scaler.transform(window).astype("float32")
     if not np.isfinite(scaled_2d).all():
         raise DataQualityError("Scaled inference window contains non-finite values")
     scaled = scaled_2d[None, :, :]
+    scaled_hash = evidence_digest(scaled.tolist())
     probability = float(predict_probabilities(bundle.model, scaled)[0])
     if not np.isfinite(probability) or not 0.0 <= probability <= 1.0:
         raise AresError(f"Model emitted an invalid probability: {probability!r}")
@@ -241,16 +274,36 @@ def generate_paper_signal(
     )
 
     if log_path is not None:
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        payload = result.to_dict()
-        payload["recorded_at"] = utc_now().isoformat()
-        payload["manifest_sha256"] = sha256_file(bundle_path / "manifest.json")
-        lock = FileLock(str(log_path) + ".lock", timeout=0)
-        try:
-            with lock, log_path.open("a", encoding="utf-8") as handle:
-                handle.write(json.dumps(payload, default=str, sort_keys=True) + "\n")
-                handle.flush()
-                os.fsync(handle.fileno())
-        except Timeout as exc:
-            raise AresError("Another paper process is writing the signal log") from exc
+        result.recording = record_paper_signal(
+            log_path,
+            event={
+                "exchange": config.data.primary_exchange,
+                "symbol": config.data.symbol,
+                "timeframe": config.data.timeframe,
+                "timestamp": utc_timestamp(result.timestamp),
+            },
+            evidence={
+                "manifest_sha256": bundle.manifest_sha256,
+                "config_sha256": evidence_digest(config.model_dump(mode="json")),
+                "primary_sha256": _frame_digest(primary_ohlcv),
+                "secondary_sha256": {
+                    name: _frame_digest(frame) for name, frame in secondary_frames.items()
+                },
+                "feature_window_sha256": feature_hash,
+                "scaled_window_sha256": scaled_hash,
+                "probability": probability,
+                "signal": signal,
+                "close": result.close,
+                "data_quality_passed": True,
+                "cross_venue_p95_bps": cross_p95,
+                "cross_venue_latest_bps": cross_latest,
+            },
+            observation={
+                "recorded_at": utc_timestamp(utc_now()),
+                "as_of": utc_timestamp(reference),
+                "bundle": str(bundle_path),
+                "staleness_bars": staleness_bars,
+                "secondary_staleness_bars": secondary_staleness,
+            },
+        )
     return result
