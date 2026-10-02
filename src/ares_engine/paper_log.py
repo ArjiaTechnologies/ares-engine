@@ -186,12 +186,16 @@ def _regular_file(path: Path) -> None:
         raise AresError("Paper journal exceeds the 16 MiB bound; review and archive explicitly")
 
 
-def _read_records(path: Path) -> tuple[bytes, list[dict[str, Any]]]:
+def _read_records(path: Path, *, required: bool = False) -> tuple[bytes, list[dict[str, Any]]]:
     _regular_file(path)
     try:
         with path.open("rb") as handle:
             raw = handle.read(MAX_LOG_BYTES + 1)
     except FileNotFoundError:
+        if required:
+            raise AresError(
+                "Paper journal does not exist; absence is not an empty observation stream"
+            ) from None
         return b"", []
     if len(raw) > MAX_LOG_BYTES or (raw and not raw.endswith(b"\n")):
         raise ValueError("Oversized or truncated paper journal")
@@ -235,6 +239,20 @@ def _journal_path(path: Path) -> Path:
             raise AresError("Ambiguous paper journal path; use a regular canonical filename")
     _regular_file(path)
     return path.resolve()
+
+
+def read_paper_journal(path: Path) -> tuple[str, list[dict[str, Any]]]:
+    """Read one validated snapshot without creating a journal, lock or directory.
+
+    Cooperating writers atomically replace whole journals. One open file handle
+    therefore reads either the prior or the new snapshot. This is not protection
+    against a writer that edits journal bytes in place.
+    """
+    try:
+        raw, records = _read_records(_journal_path(path), required=True)
+        return hashlib.sha256(raw).hexdigest(), records
+    except (OSError, ValueError, UnicodeError) as exc:
+        raise AresError(f"Invalid paper journal snapshot: {exc}") from exc
 
 
 def _replace_journal(path: Path, payload: bytes) -> None:

@@ -76,6 +76,8 @@ pytest tests/test_paper_inference_gates.py -q  # requires the ML extra
 The demo uses constructed synthetic evidence to exercise the persistence
 protocol. Tests separately cover owned-frame inference with a stub model, real
 filesystem restart failures, multiple processes, and the ML bundle lifecycle.
-This capability establishes recording integrity only. It does not yet collect
-independent forward outcomes, quantify missing-feed coverage, measure drift,
-establish profitability or provide any order-execution path.
+This capability establishes recording integrity. The companion
+[offline report](paper-report.md) describes planned-slot coverage and fixed-horizon
+terminal price changes from supplied data. Neither capability collects
+independent forward outcomes, quantifies missing-feed coverage, measures drift,
+establishes profitability or provides any order-execution path.
