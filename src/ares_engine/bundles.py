@@ -51,6 +51,7 @@ class LoadedBundle:
     config: AresConfig
     metrics: dict[str, Any]
     provenance: dict[str, Any]
+    manifest_sha256: str
 
 
 def _require_finite_json(value: Any, *, location: str) -> None:
@@ -65,6 +66,14 @@ def _require_finite_json(value: Any, *, location: str) -> None:
 
 
 def _load_json_object(path: Path, *, label: str) -> dict[str, Any]:
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        raise BundleIntegrityError(f"Bundle {label} is not readable") from exc
+    return _parse_json_object(raw, label=label)
+
+
+def _parse_json_object(raw: bytes, *, label: str) -> dict[str, Any]:
     def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
         payload: dict[str, Any] = {}
         for key, value in pairs:
@@ -74,8 +83,7 @@ def _load_json_object(path: Path, *, label: str) -> dict[str, Any]:
         return payload
 
     try:
-        with path.open(encoding="utf-8") as handle:
-            payload = json.load(handle, object_pairs_hook=unique_object)
+        payload = json.loads(raw.decode("utf-8"), object_pairs_hook=unique_object)
     except (OSError, UnicodeError, ValueError) as exc:
         raise BundleIntegrityError(f"Bundle {label} is not valid UTF-8 JSON") from exc
     if not isinstance(payload, dict):
@@ -307,7 +315,14 @@ def load_bundle(path: str | Path) -> LoadedBundle:
     ``BundleIntegrityError``; it can never get unverified bytes loaded.
     """
     bundle_path = Path(path)
+    manifest_path = bundle_path / "manifest.json"
+    _single_regular_file(manifest_path, label="manifest")
+    manifest_raw = manifest_path.read_bytes()
+    if len(manifest_raw) > BUNDLE_FILE_LIMITS["manifest.json"]:
+        raise BundleIntegrityError("Bundle manifest exceeds its allowed size")
     manifest = verify_bundle(bundle_path)
+    if _parse_json_object(manifest_raw, label="manifest") != manifest:
+        raise BundleIntegrityError("Bundle manifest changed between capture and verification")
     manifest_files = manifest["files"]
     from .models import keras_api
 
@@ -339,4 +354,5 @@ def load_bundle(path: str | Path) -> LoadedBundle:
         config=config,
         metrics=metrics,
         provenance=provenance,
+        manifest_sha256=hashlib.sha256(manifest_raw).hexdigest(),
     )

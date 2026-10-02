@@ -22,6 +22,7 @@ from .data.storage import current_generation, market_path, quality_path, read_ma
 from .holdout import run_locked_holdout
 from .live import generate_paper_signal
 from .models import backend_name
+from .paper_report import paper_report_from_files
 from .promotion import promote as promote_bundle
 from .promotion import resolve_champion
 from .public_audit import run_public_ingestion_audit, validate_public_ingestion_report
@@ -370,6 +371,17 @@ def paper(
     _json(result.to_dict())
     if not result.data_quality_passed:
         raise typer.Exit(code=3)
+
+
+@app.command("paper-report")
+def paper_report_command(
+    journal: Path = typer.Option(..., "--journal", exists=True, dir_okay=False),
+    plan: Path = typer.Option(..., "--plan", exists=True, dir_okay=False),
+    prices: Path = typer.Option(..., "--prices", exists=True, dir_okay=False),
+    as_of: str = typer.Option(..., "--as-of", help="Explicit canonical UTC cutoff."),
+) -> None:
+    """Print offline coverage and exact-horizon close annotations; no collection or writes."""
+    _json(paper_report_from_files(journal, plan, prices, as_of))
 
 
 @app.command()
