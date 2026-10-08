@@ -52,8 +52,9 @@ def test_happy_path_emits_read_only_signal_from_newest_completed_candle(
     assert result.timestamp == pd.Timestamp(paper_env["frame"]["timestamp"].max())
     assert result.data_quality_passed is True
     payload = json.loads(log_path.read_text(encoding="utf-8").strip())
-    assert payload["signal"] == result.signal
-    assert "manifest_sha256" in payload
+    assert payload["evidence"]["signal"] == result.signal
+    assert "manifest_sha256" in payload["evidence"]
+    assert result.recording.record == payload
     # Read-only: nothing in the payload resembles an order instruction.
     assert not {"order", "order_id", "size", "quantity", "venue_order"} & set(payload)
 
