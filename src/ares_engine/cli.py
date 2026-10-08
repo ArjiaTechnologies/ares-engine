@@ -22,7 +22,8 @@ from .data.storage import current_generation, market_path, quality_path, read_ma
 from .holdout import run_locked_holdout
 from .live import generate_paper_signal
 from .models import backend_name
-from .paper_report import paper_report_from_files
+from .paper_collection import collect_paper_slot, collection_status, register_collection
+from .paper_report import MAX_PLAN_BYTES, _read_json, paper_report_from_files
 from .promotion import promote as promote_bundle
 from .promotion import resolve_champion
 from .public_audit import run_public_ingestion_audit, validate_public_ingestion_report
@@ -382,6 +383,54 @@ def paper_report_command(
 ) -> None:
     """Print offline coverage and exact-horizon close annotations; no collection or writes."""
     _json(paper_report_from_files(journal, plan, prices, as_of))
+
+
+@app.command("paper-collection-init")
+def paper_collection_init(
+    collection: Path = typer.Option(..., "--collection"),
+    plan: Path = typer.Option(..., "--plan", exists=True, dir_okay=False),
+) -> None:
+    """Freeze a future local paper plan; prints the registration digest to pin."""
+    _json(register_collection(collection, _read_json(plan, MAX_PLAN_BYTES)))
+
+
+@app.command("paper-collect")
+def paper_collect(
+    collection: Path = typer.Option(..., "--collection", exists=True, dir_okay=False),
+    registration_sha256: str = typer.Option(..., "--registration-sha256"),
+    candle: str = typer.Option(..., "--candle"),
+    bundle: Path = typer.Option(..., "--bundle"),
+    primary: Path = typer.Option(..., "--primary"),
+    secondary: list[str] = typer.Option([], "--secondary", help="Repeat EXCHANGE=LOCAL_PATH."),
+) -> None:
+    """Attempt one planned candle using local files, without network collection."""
+    sources: dict[str, Path] = {}
+    for item in secondary:
+        name, separator, source = item.partition("=")
+        if not separator or not name or not source or name in sources or len(sources) >= 8:
+            raise typer.BadParameter("Use at most eight unique EXCHANGE=LOCAL_PATH inputs")
+        sources[name] = Path(source)
+    result = collect_paper_slot(
+        collection,
+        registration_sha256=registration_sha256,
+        candle=candle,
+        bundle=bundle,
+        primary=primary,
+        secondary=sources,
+    )
+    _json(result)
+    if result["attempt"]["status"] != "SUCCEEDED":
+        raise typer.Exit(code=3)
+
+
+@app.command("paper-collection-status")
+def paper_collection_status(
+    collection: Path = typer.Option(..., "--collection", exists=True, dir_okay=False),
+    registration_sha256: str = typer.Option(..., "--registration-sha256"),
+    as_of: str = typer.Option(..., "--as-of"),
+) -> None:
+    """Inspect planned slots, explicit rejections and unresolved attempts without writes."""
+    _json(collection_status(collection, registration_sha256=registration_sha256, as_of=as_of))
 
 
 @app.command()

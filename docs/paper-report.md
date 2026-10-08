@@ -99,3 +99,7 @@ backdating only `as_of`, but both declared clocks remain unauthenticated. Every
 report explicitly leaves independent forward performance unestablished and
 statistical drift unavailable. Feature-distribution drift, failure coverage and
 collection of independent forward outcomes remain separate work.
+
+[Frozen local collections](paper-collection.md) add a pinned plan and separate
+attempt/failure accounting around supplied-file inference. Their embedded plan
+and dedicated signal journal can be used directly with this reporting protocol.

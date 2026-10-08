@@ -13,10 +13,16 @@ import pandas as pd
 
 from .bundles import load_bundle
 from .data.quality import QualityReport, validate_cross_venue, validate_ohlcv
-from .exceptions import AresError, DataQualityError
+from .exceptions import AresError, DataQualityError, PaperPlanMismatch
 from .features import build_features
 from .models import predict_probabilities
-from .paper_log import PaperRecordingReceipt, evidence_digest, record_paper_signal, utc_timestamp
+from .paper_log import (
+    PaperExpectation,
+    PaperRecordingReceipt,
+    evidence_digest,
+    record_paper_signal,
+    utc_timestamp,
+)
 from .utils import timeframe_to_seconds, utc_now
 
 SecondaryInput: TypeAlias = pd.DataFrame | Mapping[str, pd.DataFrame] | None
@@ -127,6 +133,7 @@ def generate_paper_signal(
     secondary_ohlcv: SecondaryInput = None,
     log_path: Path | None = None,
     as_of: datetime | pd.Timestamp | None = None,
+    expected: PaperExpectation | None = None,
 ) -> PaperSignal:
     """Generate one paper signal only after every configured data gate passes.
 
@@ -145,6 +152,14 @@ def generate_paper_signal(
         }
     bundle = load_bundle(bundle_path)
     config = bundle.config
+    if expected is not None and (
+        bundle.manifest_sha256 != expected.manifest_sha256
+        or evidence_digest(config.model_dump(mode="json")) != expected.config_sha256
+        or config.data.primary_exchange != expected.event.exchange
+        or config.data.symbol != expected.event.symbol
+        or config.data.timeframe != expected.event.timeframe
+    ):
+        raise PaperPlanMismatch("Loaded model/config/market does not match the pinned paper plan")
     reference = as_of or utc_now()
     failures: list[str] = []
     primary_report = validate_ohlcv(
@@ -231,6 +246,11 @@ def generate_paper_signal(
     if failures:
         raise DataQualityError("Paper inference blocked by data gates: " + "; ".join(failures))
 
+    if expected is not None and (
+        utc_timestamp(primary_ohlcv.iloc[-1]["timestamp"]) != expected.event.timestamp
+    ):
+        raise PaperPlanMismatch("Latest supplied candle does not match the planned slot")
+
     feature_frame = build_features(primary_ohlcv, config.features)
     expected_columns = list(bundle.feature_spec["columns"])
     if feature_frame.columns != expected_columns:
@@ -260,6 +280,8 @@ def generate_paper_signal(
     short_threshold = float(bundle.feature_spec["thresholds"]["short"])
     signal = 1 if probability >= long_threshold else -1 if probability <= short_threshold else 0
     latest = inference_window.iloc[-1]
+    if expected is not None and utc_timestamp(latest["timestamp"]) != expected.event.timestamp:
+        raise PaperPlanMismatch("Feature window does not end at the planned candle")
     result = PaperSignal(
         timestamp=pd.Timestamp(latest["timestamp"]),
         probability=probability,

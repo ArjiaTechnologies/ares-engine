@@ -108,6 +108,12 @@ class PaperEvidence(_StrictModel):
         return True
 
 
+class PaperExpectation(_StrictModel):
+    event: PaperEvent
+    manifest_sha256: Digest
+    config_sha256: Digest
+
+
 class PaperObservation(_StrictModel):
     recorded_at: str
     as_of: str
