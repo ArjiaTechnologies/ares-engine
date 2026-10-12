@@ -19,6 +19,16 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from .data.storage import read_market
 from .exceptions import AresError, BundleIntegrityError, DataQualityError, PaperPlanMismatch
 from .live import generate_paper_signal
+from .paper_inputs import (
+    InputCapture,
+    capture_at_cutoff,
+    captured_frames,
+    receipt_matches_capture,
+    receipt_not_before_inputs,
+    requested_capture,
+    validate_capture,
+    validate_snapshots,
+)
 from .paper_log import (
     MAX_LOG_BYTES,
     Digest,
@@ -66,6 +76,7 @@ class Attempt(_Strict):
     finished_at: str | None = None
     failure_code: Failure | None = None
     record_sha256: Digest | None = None
+    input_capture: InputCapture | None = None
 
     @field_validator("candle", "started_at", "finished_at")
     @classmethod
@@ -90,7 +101,11 @@ def _attempt_id(registration: str, candle: str) -> str:
 
 def _validate(value: Any, expected: str) -> dict[str, Any]:
     parsed = CollectionState.model_validate(value)
+    # Optional capture fields must never manufacture evidence or change legacy hashes.
     state = parsed.model_dump(mode="json")
+    for parsed_attempt, saved_attempt in zip(parsed.attempts, state["attempts"], strict=True):
+        if "input_capture" not in parsed_attempt.model_fields_set:
+            saved_attempt.pop("input_capture")
     reg = state["registration"]
     plan = parsed.registration.plan
     if (
@@ -141,13 +156,16 @@ def _validate(value: Any, expected: str) -> dict[str, Any]:
             attempt.finished_at is not None and pd.Timestamp(attempt.finished_at) < started
         ):
             raise AresError("Inconsistent attempt transition")
-        last_time = pd.Timestamp(attempt.finished_at or attempt.started_at)
+        capture_time = validate_capture(state["attempts"][len(seen) - 1], plan.exchange)
+        last_time = max(pd.Timestamp(attempt.finished_at or attempt.started_at), capture_time)
     return state
 
 
 def _read_state(path: Path, expected: str) -> dict[str, Any]:
     try:
-        return _validate(_read_json(_journal_path(path), MAX_LOG_BYTES), expected)
+        state = _validate(_read_json(_journal_path(path), MAX_LOG_BYTES), expected)
+        validate_snapshots(path, state)
+        return state
     except (ValueError, OSError, OverflowError) as exc:
         raise AresError(f"Collection state blocked: {exc}") from exc
 
@@ -244,6 +262,8 @@ def _validate_receipts(state: dict[str, Any], records: list[dict[str, Any]]) -> 
                 for key in ("manifest_sha256", "config_sha256")
             )
             or record["observation"]["as_of"] != attempt["started_at"]
+            or not receipt_matches_capture(attempt, record["evidence"])
+            or not receipt_not_before_inputs(attempt, record["observation"]["recorded_at"])
             or not pd.Timestamp(attempt["started_at"])
             <= pd.Timestamp(record["observation"]["recorded_at"])
             <= pd.Timestamp(attempt["finished_at"])
@@ -259,6 +279,7 @@ def collect_paper_slot(
     bundle: Path,
     primary: Path,
     secondary: Mapping[str, Path] | None = None,
+    capture_inputs: bool = False,
 ) -> dict[str, Any]:
     """Dispatch once from local files. Existing attempts NEVER invoke inference again.
 
@@ -290,14 +311,31 @@ def collect_paper_slot(
             "failure_code": None,
             "record_sha256": None,
         }
+        if capture_inputs:
+            attempt["input_capture"] = requested_capture(plan["exchange"], secondary or {})
         state["attempts"].append(attempt)
         _save(path, state)  # Durable admission precedes reading inputs or invoking inference.
         failure: Failure | None = None
-        try:
-            frame = read_market(primary)
-            others = {name: read_market(source) for name, source in (secondary or {}).items()}
-        except (OSError, ValueError, AresError):
-            failure = "LOCAL_INPUT_REJECTED"
+        if capture_inputs:
+            captured = captured_frames(
+                path,
+                state,
+                attempt,
+                primary=primary,
+                secondary=secondary or {},
+                clock=lambda: utc_timestamp(utc_now()),
+                save=lambda: _save(path, state),
+            )
+            if captured is None:
+                failure = "LOCAL_INPUT_REJECTED"
+            else:
+                frame, others = captured
+        else:
+            try:
+                frame = read_market(primary)
+                others = {name: read_market(source) for name, source in (secondary or {}).items()}
+            except (OSError, ValueError, AresError):
+                failure = "LOCAL_INPUT_REJECTED"
         if failure is None:
             try:
                 result = generate_paper_signal(
@@ -327,6 +365,8 @@ def collect_paper_slot(
                         for key in ("manifest_sha256", "config_sha256")
                     )
                     or record["observation"]["as_of"] != attempt["started_at"]
+                    or not receipt_matches_capture(attempt, record["evidence"])
+                    or not receipt_not_before_inputs(attempt, record["observation"]["recorded_at"])
                     or pd.Timestamp(record["observation"]["recorded_at"])
                     < pd.Timestamp(attempt["started_at"])
                 ):
@@ -371,6 +411,7 @@ def collection_status(path: Path, *, registration_sha256: str, as_of: str) -> di
                 attempt_id=attempt["attempt_id"],
                 started_at=attempt["started_at"],
                 status="STARTED_UNKNOWN",
+                input_capture=capture_at_cutoff(attempt, as_of),
             )
             if attempt["finished_at"] is not None and pd.Timestamp(
                 attempt["finished_at"]

@@ -122,10 +122,73 @@ the existing inference path with a stub model and terminate actual processes.
 Limits: 10,000 planned slots/attempts and 16 MiB each for state and signal
 journal. All existing plan bounds apply. The trusted-local, cooperating-writer
 and power-loss limitations of [paper recording](paper-recording.md) remain.
-Input snapshots must stay stable while read; the files are not captured as a
-transaction across venues. Failure records do not retain source-frame hashes;
-successful receipts bind the values actually supplied to inference. This is
+Without `--capture-inputs`, input snapshots must stay stable while read and failure
+records do not retain source-frame hashes. Successful receipts bind the values
+actually supplied to inference. Opt-in capture is described below. This is
 attempt accounting for offline supplied files, not authenticated preregistration,
 independent forward collection, detailed failure telemetry, drift measurement
 or investment evidence. Every status report leaves independent forward
 performance unestablished.
+
+## Preserve the supplied input bytes
+
+Add `--capture-inputs` to `paper-collect` to preserve local file evidence for that
+new attempt. The existing frozen registration and stable attempt ID bind a
+declared primary/secondary inventory before any input read. The choice is made
+per attempt, not retroactively and not as a new guarantee in an older plan.
+An already-admitted slot never captures again, even when this flag is newly added.
+Legacy attempts remain readable without rewritten hashes or invented evidence;
+their status rows expose `input_capture: null`.
+
+Each source has these separately acknowledged stages:
+
+| Status | Evidence |
+|---|---|
+| `PENDING` | Requested source, no observed read admission |
+| `STARTED` | Admission saved before opening the supplied file |
+| `CAPTURED` | Exact bounded bytes saved; parsing completion unacknowledged |
+| `READY` | Bytes decoded and normalized-frame digest saved |
+| `READ_REJECTED` | Known local read/path/size rejection; no captured byte claim |
+| `PARSE_REJECTED` | Captured bytes preserved, decoding or normalized digest rejected |
+
+`started_at` through `captured_at` bounds the observed local read and snapshot
+publication. `finished_at` records the acknowledged parse/digest or rejection
+observation. These are unauthenticated local-clock declarations. They are separate
+from candle time and file modification time, and do not establish when a provider
+retrieved, published or first made the data available. Sources are observed
+sequentially; this is not a simultaneous or atomic cross-venue snapshot. A file
+edited in place during its read may yield mixed bytes: the evidence preserves
+exactly what was read, without certifying an upstream file generation.
+
+Snapshots use generated names under
+`experiment.json.inputs/<attempt_id>/<source_index>.parquet`. State records the
+source role/exchange and exact raw SHA-256/byte count, without copying original
+paths or exception text. Parsing uses the captured in-memory bytes, never a
+second read of the original path. A separate frame hash covers the timestamp-
+normalized, sorted OHLCV values used by inference; encoding changes, extra
+columns and row order may change the raw hash without changing that frame hash.
+Successful receipts must match the primary and every secondary frame hash, and
+their recording time must follow all completed input observations.
+
+A malformed secondary therefore preserves both an earlier valid primary and
+the malformed secondary's bytes; later requested sources remain pending. The
+attempt becomes `LOCAL_INPUT_REJECTED` only for known read/parse rejection.
+Snapshot or state publication errors propagate as uncertain completion. A
+crash can leave a saved raw file without acknowledged metadata. Preserve it;
+the mere presence of bytes never advances the source or attempt state and never
+authorizes recapture. There is no automatic repair or cleanup command.
+
+Inspection, replay and new dispatch validate all referenced raw snapshots and
+their declared normalized hashes. Missing, changed, linked or inconsistent
+evidence blocks work without copying changed originals. Status at an earlier
+cutoff hides later source transitions. Whole-state hashes can still change as
+later evidence arrives. Inspection does not write source files or state.
+
+Limits are nine sources per attempt, 16 MiB per file and 256 MiB of preserved
+input files per collection, including interrupted/orphan files. Size exhaustion
+requires explicit review, not deletion or a new collection to hide history.
+The byte limits do not bound arbitrary Parquet decoder memory use; use trusted
+local inputs. The existing cooperating-writer and power-loss limits apply.
+This is supplied-file provenance, not original exchange-response capture or
+independent forward acquisition. Run `python scripts/demo_paper_inputs.py` for
+a synthetic partial-failure example with byte preservation and unchanged replay.

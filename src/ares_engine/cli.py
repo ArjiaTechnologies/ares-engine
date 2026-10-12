@@ -402,6 +402,11 @@ def paper_collect(
     bundle: Path = typer.Option(..., "--bundle"),
     primary: Path = typer.Option(..., "--primary"),
     secondary: list[str] = typer.Option([], "--secondary", help="Repeat EXCHANGE=LOCAL_PATH."),
+    capture_inputs: bool = typer.Option(
+        False,
+        "--capture-inputs",
+        help="Preserve bounded local Parquet bytes and per-source capture times.",
+    ),
 ) -> None:
     """Attempt one planned candle using local files, without network collection."""
     sources: dict[str, Path] = {}
@@ -417,6 +422,7 @@ def paper_collect(
         bundle=bundle,
         primary=primary,
         secondary=sources,
+        capture_inputs=capture_inputs,
     )
     _json(result)
     if result["attempt"]["status"] != "SUCCEEDED":
