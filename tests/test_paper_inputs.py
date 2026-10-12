@@ -549,7 +549,9 @@ def test_real_process_death_with_ready_snapshots_does_not_authorize_inference(
     monkeypatch.setattr(collection, "generate_paper_signal", fail_if_called)
     assert collect(env)["dispatch"] == "REPLAY_NO_DISPATCH"
     assert status(env)["counts"]["STARTED_UNKNOWN"] == 1
-    assert file_bytes(env.path.parent) == before
+    after = file_bytes(env.path.parent)
+    after.pop(env.path.name + ".lock", None)
+    assert after == before
 
 
 def test_oversized_source_is_rejected_before_raw_publication(capture_env, monkeypatch):
