@@ -11,6 +11,7 @@ import tempfile
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
+from io import BytesIO
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
 
@@ -96,9 +97,17 @@ def generation_duckdb_path(root: Path, generation: str) -> Path:
 def read_market(path: Path) -> pd.DataFrame:
     if not path.exists():
         return pd.DataFrame()
-    frame = pd.read_parquet(path)
+    return _normalize_market(pd.read_parquet(path), str(path))
+
+
+def read_market_bytes(raw: bytes) -> pd.DataFrame:
+    """Decode exactly the captured Parquet bytes, without reopening a source path."""
+    return _normalize_market(pd.read_parquet(BytesIO(raw)), "captured local input")
+
+
+def _normalize_market(frame: pd.DataFrame, source: str) -> pd.DataFrame:
     if "timestamp" not in frame:
-        raise AresError(f"Market data file has no timestamp column: {path}")
+        raise AresError(f"Market data file has no timestamp column: {source}")
     frame["timestamp"] = pd.to_datetime(frame["timestamp"], utc=True)
     return frame.sort_values("timestamp").reset_index(drop=True)
 

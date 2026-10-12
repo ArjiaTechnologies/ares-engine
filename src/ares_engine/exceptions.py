@@ -17,5 +17,9 @@ class BundleIntegrityError(AresError):
     """Raised when a model bundle is missing files or fails hash verification."""
 
 
+class PaperPlanMismatch(AresError):
+    """Raised before recording when inference differs from a pinned paper plan."""
+
+
 class PromotionRejected(AresError):
     """Raised when a challenger does not satisfy promotion rules."""

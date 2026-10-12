@@ -58,6 +58,9 @@ See [DISCLAIMER.md](DISCLAIMER.md), [SECURITY.md](SECURITY.md), and [docs/resear
 - Delayed long/flat/short backtesting with fees, slippage, doubled-cost stress, drawdown, turnover, exposure, hit rate, trade counts, and bankruptcy reporting.
 - Immutable seven-file bundles, hostile-file checks, runtime shape validation, manifest-anchored promotion, and fail-closed paper inference.
 - Process locks for ingestion, scheduler cycles, promotion, and paper-signal logs.
+- [Paper recording with restart reconciliation](docs/paper-recording.md): one event per market/candle, exact evidence receipts, and fail-closed conflict/legacy-history handling.
+- [Offline paper reports](docs/paper-report.md): declared-slot coverage, visible late/model-mismatched records and exact-horizon price annotations from supplied evidence.
+- [Frozen local paper collections](docs/paper-collection.md): pinned plans and separate success, rejection, interrupted and unattempted-slot evidence for supplied-file inference.
 - Python 3.11–3.13 CI, ML/package/Docker jobs, CodeQL, dependency review, and a manual-only public-ingestion workflow.
 - Tag-only release automation builds checksummed wheel/sdist artifacts and a CycloneDX SBOM for a draft GitHub release; it never publishes to PyPI or contacts exchanges.
 
