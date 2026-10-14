@@ -35,7 +35,7 @@ jobs:
           test "$(git cat-file -t "refs/tags/$RELEASE_TAG")" = "tag"
           test "$RELEASE_TAG" = "v$(python -c 'from pathlib import Path; import re; print(re.search(r"^version = \"([^\"]+)\"", Path("pyproject.toml").read_text(), re.MULTILINE).group(1))')"
           echo "SOURCE_DATE_EPOCH=$(git show -s --format=%ct "$RELEASE_SHA")" >> "$GITHUB_ENV"
-      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           python-version: "3.11"
           enable-cache: true
