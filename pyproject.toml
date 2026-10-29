@@ -23,7 +23,7 @@ dependencies = [
   "apscheduler>=3.10,<4",
   "ccxt>=4.4,<5",
   "duckdb>=1.2,<2",
-  "filelock>=3.16,<4",
+  "filelock>=3.16,<5",
   "joblib>=1.4,<2",
   # NumPy 2.4+ stubs use Python 3.12-only syntax even when mypy targets 3.11.
   "numpy>=1.26,<2.4",
